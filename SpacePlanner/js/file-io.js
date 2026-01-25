@@ -46,6 +46,7 @@ export async function saveLayout() {
     unit: 'inches',
     created: new Date().toISOString(),
     layers: state.layers,
+    activeLayerId: appState.activeLayerId,
     objects: state.objects
   };
 
@@ -105,7 +106,12 @@ export function loadLayout() {
           // Load layers or create default (backward compatibility)
           if (data.layers && Array.isArray(data.layers) && data.layers.length > 0) {
             state.layers = data.layers;
-            appState.activeLayerId = state.layers[0].id;
+            // Restore active layer if saved, otherwise use first layer
+            if (data.activeLayerId && state.layers.some(l => l.id === data.activeLayerId)) {
+              appState.activeLayerId = data.activeLayerId;
+            } else {
+              appState.activeLayerId = state.layers[0].id;
+            }
           } else {
             // Old file without layers - create default and assign all objects
             state.layers = [

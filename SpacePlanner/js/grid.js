@@ -96,7 +96,88 @@ export function resetView() {
   stage.position({ x: 0, y: 0 });
   stage.batchDraw();
   drawGrid();
+  if (renderAllObjectsCallback) renderAllObjectsCallback();
+  refreshSelectionUI();
   updateStatusBar('View reset to 100%');
+}
+
+// Callback for getting state objects
+let getObjectsCallback = null;
+
+export function setFitViewCallback(cb) {
+  getObjectsCallback = cb;
+}
+
+export function fitView() {
+  const objects = getObjectsCallback ? getObjectsCallback() : [];
+
+  // If no objects, reset to center at 100%
+  if (objects.length === 0) {
+    stage.scale({ x: 1, y: 1 });
+    stage.position({ x: 0, y: 0 });
+    stage.batchDraw();
+    drawGrid();
+    if (renderAllObjectsCallback) renderAllObjectsCallback();
+    refreshSelectionUI();
+    updateStatusBar('View reset to 100%');
+    return;
+  }
+
+  // Calculate bounding box of all objects
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  for (const obj of objects) {
+    if (obj.type === 'wall') {
+      minX = Math.min(minX, obj.x1, obj.x2);
+      minY = Math.min(minY, obj.y1, obj.y2);
+      maxX = Math.max(maxX, obj.x1, obj.x2);
+      maxY = Math.max(maxY, obj.y1, obj.y2);
+    } else if (obj.type === 'rectangle') {
+      minX = Math.min(minX, obj.x);
+      minY = Math.min(minY, obj.y);
+      maxX = Math.max(maxX, obj.x + obj.width);
+      maxY = Math.max(maxY, obj.y + obj.height);
+    } else if (obj.type === 'text' || obj.type === 'label') {
+      minX = Math.min(minX, obj.x);
+      minY = Math.min(minY, obj.y);
+      maxX = Math.max(maxX, obj.x + 100); // Approximate text width
+      maxY = Math.max(maxY, obj.y + 20);  // Approximate text height
+    }
+  }
+
+  if (minX === Infinity) {
+    updateStatusBar('No objects to fit');
+    return;
+  }
+
+  // Add padding (50px screen space)
+  const padding = 50;
+  const stageW = stage.width();
+  const stageH = stage.height();
+  const contentW = maxX - minX;
+  const contentH = maxY - minY;
+
+  // Calculate scale to fit content
+  const scaleX = (stageW - padding * 2) / contentW;
+  const scaleY = (stageH - padding * 2) / contentH;
+  let newScale = Math.min(scaleX, scaleY);
+
+  // Clamp scale to reasonable bounds
+  newScale = Math.max(0.1, Math.min(10, newScale));
+
+  // Calculate position to center content
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const newX = stageW / 2 - centerX * newScale;
+  const newY = stageH / 2 - centerY * newScale;
+
+  stage.scale({ x: newScale, y: newScale });
+  stage.position({ x: newX, y: newY });
+  stage.batchDraw();
+  drawGrid();
+  if (renderAllObjectsCallback) renderAllObjectsCallback();
+  refreshSelectionUI();
+  updateStatusBar(`Fit to content: ${Math.round(newScale * 100)}%`);
 }
 
 export function handleResize() {

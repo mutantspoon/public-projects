@@ -4,7 +4,7 @@ import { WALL_THICKNESS } from './constants.js';
 import { appState, state, history, DEFAULT_LAYER_ID } from './state.js';
 import { initializeKonva, stage, gridLayer, contentLayer, uiLayer, getCanvasPointerPosition } from './konva-setup.js';
 import { updateStatusBar, isMac, isModKey, pixelsToInches, inchesToPixels, parseDimension, formatDimension } from './utils.js';
-import { drawGrid, handleZoom, resetView, handleResize, setGridCallbacks } from './grid.js';
+import { drawGrid, handleZoom, fitView, handleResize, setGridCallbacks, setFitViewCallback } from './grid.js';
 import { getSnappedPoint, getAxisLock, findNearestVertex, snapToGrid, snapPointToGrid } from './snapping.js';
 import { saveSnapshot, undo, redo, updateUndoRedoButtons, setHistoryCallbacks } from './history.js';
 import { renderAllObjects, renderObject, moveTextToTop, setRenderingCallbacks } from './rendering.js';
@@ -106,6 +106,8 @@ setLayerPanelCallbacks({
 setGridCallbacks({
   renderAllObjects
 });
+
+setFitViewCallback(() => state.objects);
 
 // ===== TOOL SWITCHING =====
 function switchTool(tool) {
@@ -292,7 +294,7 @@ document.getElementById('dimensions-toggle').addEventListener('click', () => {
   updateStatusBar(`Dimensions ${appState.dimensionsVisible ? 'shown' : 'hidden'}`);
 });
 
-document.getElementById('reset-view').addEventListener('click', resetView);
+document.getElementById('fit-view').addEventListener('click', fitView);
 document.getElementById('undo-btn').addEventListener('click', undo);
 document.getElementById('redo-btn').addEventListener('click', redo);
 document.getElementById('move-up-btn').addEventListener('click', () => {

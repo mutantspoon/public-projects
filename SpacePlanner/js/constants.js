@@ -13,7 +13,7 @@ export const WALL_HIT_WIDTH = 25;
 export const HANDLE_RADIUS = 8;
 export const HANDLE_STROKE = 2;
 export const HIGHLIGHT_STROKE = 2;
-export const LABEL_FONT_SIZE = 12;
+export const LABEL_FONT_SIZE = 14;
 
 export const COLOR_PALETTE = [
   '#F2F1EF', '#DED6C7', '#B1A796', '#848C8E',

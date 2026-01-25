@@ -34,15 +34,15 @@ export function renderLayerPanel() {
 
     // Visibility toggle
     const visIcon = document.createElement('div');
-    visIcon.className = 'layer-icon';
-    visIcon.innerHTML = layer.visible ? '&#128065;' : '&#128064;'; // eye open/closed
+    visIcon.className = 'layer-icon ' + (layer.visible ? 'vis-on' : 'vis-off');
+    visIcon.innerHTML = layer.visible ? '👁' : '—';
     visIcon.title = layer.visible ? 'Hide layer' : 'Show layer';
     visIcon.onclick = (e) => { e.stopPropagation(); toggleLayerVisibility(layer.id); };
 
     // Lock toggle
     const lockIcon = document.createElement('div');
-    lockIcon.className = 'layer-icon';
-    lockIcon.innerHTML = layer.locked ? '&#128274;' : '&#128275;'; // locked/unlocked
+    lockIcon.className = 'layer-icon ' + (layer.locked ? 'lock-on' : 'lock-off');
+    lockIcon.innerHTML = layer.locked ? '🔒' : '🔓';
     lockIcon.title = layer.locked ? 'Unlock layer' : 'Lock layer';
     lockIcon.onclick = (e) => { e.stopPropagation(); toggleLayerLock(layer.id); };
 

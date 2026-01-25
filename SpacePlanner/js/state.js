@@ -35,7 +35,7 @@ export const appState = {
   isBoxSelecting: false,
   boxSelectStart: null,
   rectangleColor: '#2C3338',
-  rectangleFilled: false
+  rectangleFilled: true
 };
 
 export const history = { undoStack: [], redoStack: [], maxSize: 50 };

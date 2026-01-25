@@ -127,21 +127,28 @@ function renderWall(obj, editable, isSelectTool) {
     const inches = pixelsToInches(len);
     const midX = (obj.x1 + obj.x2) / 2;
     const midY = (obj.y1 + obj.y2) / 2;
-    const angle = Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1) * 180 / Math.PI;
+    const angleRad = Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1);
+    const angle = angleRad * 180 / Math.PI;
     const normAngle = ((angle % 360) + 360) % 360;
     const textRot = (normAngle > 90 && normAngle < 270) ? angle + 180 : angle;
     const fontSize = screenSize(LABEL_FONT_SIZE);
     const labelText = formatDimension(inches);
+    const textWidth = labelText.length * fontSize * 0.55;
+
+    // Offset perpendicular to the wall (to the left of the line direction)
+    const labelOffset = screenSize(18);
+    const perpX = -Math.sin(angleRad) * labelOffset;
+    const perpY = Math.cos(angleRad) * labelOffset;
 
     const dimLabel = new Konva.Text({
-      x: midX,
-      y: midY - screenSize(15),
+      x: midX + perpX,
+      y: midY + perpY,
       text: labelText,
       fontSize: fontSize,
-      fill: '#5C6367',
+      fill: '#2C3338',
       fontStyle: 'bold',
       rotation: textRot,
-      offsetX: labelText.length * fontSize * 0.25,
+      offsetX: textWidth / 2,
       listening: false
     });
     group.add(dimLabel);
@@ -257,25 +264,33 @@ function renderRectangle(obj, editable, isSelectTool) {
     const widthText = formatDimension(widthInches);
     const heightText = formatDimension(heightInches);
 
+    const widthTextWidth = widthText.length * fontSize * 0.55;
+    const heightTextWidth = heightText.length * fontSize * 0.55;
+    const textHeight = fontSize * 1.2;
+    const labelOffset = screenSize(12);
+
+    // Width label - below rectangle
     widthLabel = new Konva.Text({
       x: obj.x + obj.width / 2,
-      y: obj.y + obj.height + screenSize(8),
+      y: obj.y + obj.height + labelOffset,
       text: widthText,
       fontSize: fontSize,
-      fill: '#5C6367',
+      fill: '#2C3338',
       fontStyle: 'bold',
-      offsetX: widthText.length * fontSize * 0.25,
+      offsetX: widthTextWidth / 2,
       listening: false
     });
 
+    // Height label - to the right of rectangle
     heightLabel = new Konva.Text({
-      x: obj.x + obj.width + screenSize(15),
-      y: obj.y + obj.height / 2 + heightText.length * fontSize * 0.25,
+      x: obj.x + obj.width + labelOffset + textHeight / 2,
+      y: obj.y + obj.height / 2,
       text: heightText,
       fontSize: fontSize,
-      fill: '#5C6367',
+      fill: '#2C3338',
       fontStyle: 'bold',
       rotation: -90,
+      offsetX: heightTextWidth / 2,
       listening: false
     });
 
@@ -294,11 +309,13 @@ function renderRectangle(obj, editable, isSelectTool) {
     // Update dimension label positions during drag
     if (widthLabel && heightLabel) {
       const fontSize = screenSize(LABEL_FONT_SIZE);
-      const heightText = formatDimension(pixelsToInches(obj.height));
+      const labelOffset = screenSize(12);
+      const textHeight = fontSize * 1.2;
+
       widthLabel.x(rect.x() + rect.width() / 2);
-      widthLabel.y(rect.y() + rect.height() + screenSize(8));
-      heightLabel.x(rect.x() + rect.width() + screenSize(15));
-      heightLabel.y(rect.y() + rect.height() / 2 + heightText.length * fontSize * 0.25);
+      widthLabel.y(rect.y() + rect.height() + labelOffset);
+      heightLabel.x(rect.x() + rect.width() + labelOffset + textHeight / 2);
+      heightLabel.y(rect.y() + rect.height() / 2);
     }
   });
 

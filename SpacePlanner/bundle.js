@@ -10,7 +10,7 @@
   var HANDLE_RADIUS = 8;
   var HANDLE_STROKE = 2;
   var HIGHLIGHT_STROKE = 2;
-  var LABEL_FONT_SIZE = 12;
+  var LABEL_FONT_SIZE = 14;
   var COLOR_PALETTE = [
     "#F2F1EF",
     "#DED6C7",
@@ -62,7 +62,7 @@
     isBoxSelecting: false,
     boxSelectStart: null,
     rectangleColor: "#2C3338",
-    rectangleFilled: false
+    rectangleFilled: true
   };
   var history = { undoStack: [], redoStack: [], maxSize: 50 };
   function getLayerById(id) {
@@ -843,12 +843,65 @@
     refreshSelectionUI();
     updateStatusBar(`Zoom: ${Math.round(newScale * 100)}%`);
   }
-  function resetView() {
-    stage.scale({ x: 1, y: 1 });
-    stage.position({ x: 0, y: 0 });
+  var getObjectsCallback = null;
+  function setFitViewCallback(cb) {
+    getObjectsCallback = cb;
+  }
+  function fitView() {
+    const objects = getObjectsCallback ? getObjectsCallback() : [];
+    if (objects.length === 0) {
+      stage.scale({ x: 1, y: 1 });
+      stage.position({ x: 0, y: 0 });
+      stage.batchDraw();
+      drawGrid();
+      if (renderAllObjectsCallback2) renderAllObjectsCallback2();
+      refreshSelectionUI();
+      updateStatusBar("View reset to 100%");
+      return;
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const obj of objects) {
+      if (obj.type === "wall") {
+        minX = Math.min(minX, obj.x1, obj.x2);
+        minY = Math.min(minY, obj.y1, obj.y2);
+        maxX = Math.max(maxX, obj.x1, obj.x2);
+        maxY = Math.max(maxY, obj.y1, obj.y2);
+      } else if (obj.type === "rectangle") {
+        minX = Math.min(minX, obj.x);
+        minY = Math.min(minY, obj.y);
+        maxX = Math.max(maxX, obj.x + obj.width);
+        maxY = Math.max(maxY, obj.y + obj.height);
+      } else if (obj.type === "text" || obj.type === "label") {
+        minX = Math.min(minX, obj.x);
+        minY = Math.min(minY, obj.y);
+        maxX = Math.max(maxX, obj.x + 100);
+        maxY = Math.max(maxY, obj.y + 20);
+      }
+    }
+    if (minX === Infinity) {
+      updateStatusBar("No objects to fit");
+      return;
+    }
+    const padding = 50;
+    const stageW = stage.width();
+    const stageH = stage.height();
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+    const scaleX = (stageW - padding * 2) / contentW;
+    const scaleY = (stageH - padding * 2) / contentH;
+    let newScale = Math.min(scaleX, scaleY);
+    newScale = Math.max(0.1, Math.min(10, newScale));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const newX = stageW / 2 - centerX * newScale;
+    const newY = stageH / 2 - centerY * newScale;
+    stage.scale({ x: newScale, y: newScale });
+    stage.position({ x: newX, y: newY });
     stage.batchDraw();
     drawGrid();
-    updateStatusBar("View reset to 100%");
+    if (renderAllObjectsCallback2) renderAllObjectsCallback2();
+    refreshSelectionUI();
+    updateStatusBar(`Fit to content: ${Math.round(newScale * 100)}%`);
   }
   function handleResize() {
     const w = window.innerWidth, h = window.innerHeight;
@@ -938,20 +991,25 @@
       const inches = pixelsToInches(len);
       const midX = (obj.x1 + obj.x2) / 2;
       const midY = (obj.y1 + obj.y2) / 2;
-      const angle = Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1) * 180 / Math.PI;
+      const angleRad = Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1);
+      const angle = angleRad * 180 / Math.PI;
       const normAngle = (angle % 360 + 360) % 360;
       const textRot = normAngle > 90 && normAngle < 270 ? angle + 180 : angle;
       const fontSize = screenSize2(LABEL_FONT_SIZE);
       const labelText = formatDimension(inches);
+      const textWidth = labelText.length * fontSize * 0.55;
+      const labelOffset = screenSize2(18);
+      const perpX = -Math.sin(angleRad) * labelOffset;
+      const perpY = Math.cos(angleRad) * labelOffset;
       const dimLabel = new Konva.Text({
-        x: midX,
-        y: midY - screenSize2(15),
+        x: midX + perpX,
+        y: midY + perpY,
         text: labelText,
         fontSize,
-        fill: "#5C6367",
+        fill: "#2C3338",
         fontStyle: "bold",
         rotation: textRot,
-        offsetX: labelText.length * fontSize * 0.25,
+        offsetX: textWidth / 2,
         listening: false
       });
       group.add(dimLabel);
@@ -1038,24 +1096,29 @@
       const fontSize = screenSize2(LABEL_FONT_SIZE);
       const widthText = formatDimension(widthInches);
       const heightText = formatDimension(heightInches);
+      const widthTextWidth = widthText.length * fontSize * 0.55;
+      const heightTextWidth = heightText.length * fontSize * 0.55;
+      const textHeight = fontSize * 1.2;
+      const labelOffset = screenSize2(12);
       widthLabel = new Konva.Text({
         x: obj.x + obj.width / 2,
-        y: obj.y + obj.height + screenSize2(8),
+        y: obj.y + obj.height + labelOffset,
         text: widthText,
         fontSize,
-        fill: "#5C6367",
+        fill: "#2C3338",
         fontStyle: "bold",
-        offsetX: widthText.length * fontSize * 0.25,
+        offsetX: widthTextWidth / 2,
         listening: false
       });
       heightLabel = new Konva.Text({
-        x: obj.x + obj.width + screenSize2(15),
-        y: obj.y + obj.height / 2 + heightText.length * fontSize * 0.25,
+        x: obj.x + obj.width + labelOffset + textHeight / 2,
+        y: obj.y + obj.height / 2,
         text: heightText,
         fontSize,
-        fill: "#5C6367",
+        fill: "#2C3338",
         fontStyle: "bold",
         rotation: -90,
+        offsetX: heightTextWidth / 2,
         listening: false
       });
       contentLayer.add(widthLabel, heightLabel);
@@ -1068,11 +1131,12 @@
     rect.on("dragmove", () => {
       if (widthLabel && heightLabel) {
         const fontSize = screenSize2(LABEL_FONT_SIZE);
-        const heightText = formatDimension(pixelsToInches(obj.height));
+        const labelOffset = screenSize2(12);
+        const textHeight = fontSize * 1.2;
         widthLabel.x(rect.x() + rect.width() / 2);
-        widthLabel.y(rect.y() + rect.height() + screenSize2(8));
-        heightLabel.x(rect.x() + rect.width() + screenSize2(15));
-        heightLabel.y(rect.y() + rect.height() / 2 + heightText.length * fontSize * 0.25);
+        widthLabel.y(rect.y() + rect.height() + labelOffset);
+        heightLabel.x(rect.x() + rect.width() + labelOffset + textHeight / 2);
+        heightLabel.y(rect.y() + rect.height() / 2);
       }
     });
     rect.on("dragend", () => {
@@ -1532,6 +1596,7 @@
       unit: "inches",
       created: (/* @__PURE__ */ new Date()).toISOString(),
       layers: state.layers,
+      activeLayerId: appState.activeLayerId,
       objects: state.objects
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -1581,7 +1646,11 @@
             state.objects = data.objects;
             if (data.layers && Array.isArray(data.layers) && data.layers.length > 0) {
               state.layers = data.layers;
-              appState.activeLayerId = state.layers[0].id;
+              if (data.activeLayerId && state.layers.some((l) => l.id === data.activeLayerId)) {
+                appState.activeLayerId = data.activeLayerId;
+              } else {
+                appState.activeLayerId = state.layers[0].id;
+              }
             } else {
               state.layers = [
                 { id: DEFAULT_LAYER_ID, name: "Layer 1", visible: true, locked: false, order: 0 }
@@ -1865,16 +1934,16 @@
       row.className = "layer-row" + (layer.id === appState.activeLayerId ? " active" : "") + (layer.locked ? " locked" : "");
       row.dataset.layerId = layer.id;
       const visIcon = document.createElement("div");
-      visIcon.className = "layer-icon";
-      visIcon.innerHTML = layer.visible ? "&#128065;" : "&#128064;";
+      visIcon.className = "layer-icon " + (layer.visible ? "vis-on" : "vis-off");
+      visIcon.innerHTML = layer.visible ? "\u{1F441}" : "\u2014";
       visIcon.title = layer.visible ? "Hide layer" : "Show layer";
       visIcon.onclick = (e) => {
         e.stopPropagation();
         toggleLayerVisibility(layer.id);
       };
       const lockIcon = document.createElement("div");
-      lockIcon.className = "layer-icon";
-      lockIcon.innerHTML = layer.locked ? "&#128274;" : "&#128275;";
+      lockIcon.className = "layer-icon " + (layer.locked ? "lock-on" : "lock-off");
+      lockIcon.innerHTML = layer.locked ? "\u{1F512}" : "\u{1F513}";
       lockIcon.title = layer.locked ? "Unlock layer" : "Lock layer";
       lockIcon.onclick = (e) => {
         e.stopPropagation();
@@ -2167,6 +2236,7 @@
   setGridCallbacks({
     renderAllObjects
   });
+  setFitViewCallback(() => state.objects);
   function switchTool(tool) {
     appState.currentTool = tool;
     clearGhostShapes();
@@ -2301,7 +2371,7 @@
     renderAllObjects();
     updateStatusBar(`Dimensions ${appState.dimensionsVisible ? "shown" : "hidden"}`);
   });
-  document.getElementById("reset-view").addEventListener("click", resetView);
+  document.getElementById("fit-view").addEventListener("click", fitView);
   document.getElementById("undo-btn").addEventListener("click", undo);
   document.getElementById("redo-btn").addEventListener("click", redo);
   document.getElementById("move-up-btn").addEventListener("click", () => {
