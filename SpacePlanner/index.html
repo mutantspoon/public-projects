@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpacePlanner - Interior Design Tool</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cream: { 100: '#F2F1EF', 200: '#DED6C7', 300: '#B1A796' },
+            slate: { 400: '#848C8E', 500: '#5C6367', 600: '#3A3F42', 700: '#2C3338', 800: '#1D2226' },
+            sage: { 300: '#7A8B7C', 400: '#528A81', 500: '#2D453E' },
+            accent: { gold: '#F3C044', copper: '#C88132', rust: '#A65E44', brown: '#634B35', steel: '#4A5D66' }
+          }
+        }
+      }
+    }
+  </script>
+  <style id="custom-styles">
+    body { overflow: hidden; }
+    #container { width: 100vw; height: 100vh; }
+    .color-swatch {
+      aspect-ratio: 1;
+      border: 1px solid #B1A796;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+      min-height: 18px;
+    }
+    .color-swatch:hover { transform: scale(1.15); box-shadow: 0 2px 6px rgba(0,0,0,0.25); z-index: 1; }
+    .color-swatch.selected { border-color: #2C3338; border-width: 2px; box-shadow: 0 0 0 1px #528A81; }
+    .hidden { display: none !important; }
+    .layer-row { display: flex; align-items: center; padding: 4px 8px; cursor: pointer; gap: 4px; }
+    .layer-row:hover { background-color: #DED6C7; }
+    .layer-row.active { background-color: rgba(82, 138, 129, 0.2); }
+    .layer-row.locked { opacity: 0.7; }
+    .layer-icon { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: pointer; border-radius: 2px; }
+    .layer-icon:hover { background-color: rgba(0,0,0,0.1); }
+    .layer-name { flex: 1; font-size: 11px; color: #3A3F42; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .layer-menu-btn { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 10px; opacity: 0.5; border-radius: 2px; }
+    .layer-row:hover .layer-menu-btn { opacity: 1; }
+    .layer-menu-btn:hover { background-color: rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-cream-100 font-sans">
+  <div id="container"></div>
+
+  <!-- Left Toolbar -->
+  <div id="toolbar" class="fixed left-5 top-5 bg-cream-200 rounded-lg shadow-lg border border-cream-300 p-4 z-50 w-[140px]">
+    <div class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide mb-3">Tools</div>
+    <div class="space-y-1">
+      <button class="tool-button active w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="select">
+        <span class="opacity-60 mr-1">&#10148;</span> Select
+      </button>
+      <button class="tool-button w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="wall">
+        <span class="opacity-60 mr-1">&#9644;</span> Wall
+      </button>
+      <button class="tool-button w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="rectangle">
+        <span class="opacity-60 mr-1">&#9634;</span> Rect
+      </button>
+      <button class="tool-button w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="text">
+        <span class="opacity-60 mr-1">T</span> Text
+      </button>
+      <button class="tool-button w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="eraser">
+        <span class="opacity-60 mr-1">&#10005;</span> Eraser
+      </button>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="top-controls" class="fixed right-5 top-5 bg-cream-200 rounded-lg shadow-lg border border-cream-300 p-4 z-50 w-[220px]">
+    <!-- Dimension Panel (hidden by default) -->
+    <div id="dimension-panel" class="hidden pb-3 mb-3 border-b border-cream-300">
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-2">Dimensions</label>
+      <input type="text" id="dimension-input" placeholder="e.g., 10' 6&quot;"
+        class="w-full px-3 py-2 text-sm border-2 border-cream-300 rounded-md bg-cream-100 text-slate-700 focus:border-sage-400 focus:outline-none">
+      <div class="text-[10px] text-slate-400 mt-1">Press Enter to apply</div>
+    </div>
+
+    <!-- Rectangle Panel (hidden by default) -->
+    <div id="rectangle-panel" class="hidden pb-3 mb-3 border-b border-cream-300">
+      <div class="flex items-center justify-between mb-1">
+        <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Color</label>
+        <label class="flex items-center text-[10px] text-slate-600 cursor-pointer">
+          <input type="checkbox" id="rect-fill" class="mr-1 accent-sage-400 w-3 h-3">
+          Fill
+        </label>
+      </div>
+      <div id="color-palette" class="grid grid-cols-8 gap-0.5 mb-2"></div>
+
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-1">Layer</label>
+      <div class="grid grid-cols-2 gap-1">
+        <button id="move-up-btn" class="px-2 py-1 text-[10px] rounded border border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all">Move Up</button>
+        <button id="move-down-btn" class="px-2 py-1 text-[10px] rounded border border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all">Move Down</button>
+      </div>
+    </div>
+
+    <!-- View Controls -->
+    <div class="mb-3">
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-2">View</label>
+      <button id="grid-toggle" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">Toggle Grid</button>
+      <button id="dimensions-toggle" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">Toggle Dimensions</button>
+      <button id="reset-view" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all">Reset View</button>
+    </div>
+
+    <!-- Edit Controls -->
+    <div class="mb-3">
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-2">Edit</label>
+      <div class="grid grid-cols-2 gap-1.5">
+        <button id="undo-btn" class="px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">Undo</button>
+        <button id="redo-btn" class="px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">Redo</button>
+      </div>
+    </div>
+
+    <!-- File Controls -->
+    <div>
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-2">File</label>
+      <button id="new-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">New</button>
+      <button id="save-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">Save</button>
+      <button id="load-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">Load</button>
+      <button id="export-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-sage-400 bg-sage-400 text-cream-100 hover:bg-sage-500 transition-all font-medium">Export PNG</button>
+    </div>
+  </div>
+
+  <!-- Layer Panel (Bottom Left) -->
+  <div id="layer-panel" class="fixed left-5 bottom-12 bg-cream-200 rounded-lg shadow-lg border border-cream-300 z-50 w-[180px]">
+    <div class="flex items-center justify-between px-3 py-2 border-b border-cream-300">
+      <span class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Layers</span>
+      <button id="add-layer-btn" class="w-5 h-5 text-xs rounded border border-cream-300 bg-cream-100 text-slate-600 hover:bg-cream-200 hover:border-slate-400 transition-all" title="Add Layer">+</button>
+    </div>
+    <div id="layer-list" class="max-h-[150px] overflow-y-auto">
+      <!-- Layer rows rendered by JS -->
+    </div>
+    <div class="px-2 py-2 border-t border-cream-300">
+      <button id="move-to-layer-btn" class="w-full px-2 py-1 text-[10px] rounded border border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>Move to Layer</button>
+    </div>
+  </div>
+
+  <!-- Layer Context Menu -->
+  <div id="layer-context-menu" class="hidden fixed bg-cream-100 rounded shadow-lg border border-cream-300 z-[100] py-1 min-w-[100px]">
+    <button class="layer-menu-item w-full px-3 py-1 text-xs text-left text-slate-700 hover:bg-cream-200" data-action="rename">Rename</button>
+    <button class="layer-menu-item w-full px-3 py-1 text-xs text-left text-slate-700 hover:bg-cream-200" data-action="move-up">Move Up</button>
+    <button class="layer-menu-item w-full px-3 py-1 text-xs text-left text-slate-700 hover:bg-cream-200" data-action="move-down">Move Down</button>
+    <div class="border-t border-cream-300 my-1"></div>
+    <button class="layer-menu-item w-full px-3 py-1 text-xs text-left text-rust-500 hover:bg-cream-200" data-action="delete">Delete</button>
+  </div>
+
+  <!-- Status Bar -->
+  <div id="status-bar" class="fixed bottom-0 left-0 right-0 bg-cream-200 border-t border-cream-300 px-5 py-2 text-xs text-slate-600 z-50">
+    <span id="status-text">Select tool active | Click objects to select and edit | Mouse wheel to zoom, Space+drag to pan</span>
+  </div>
+
+  <input type="file" id="file-input" accept=".layout" class="hidden">
+
+  <script src="./bundle.js"></script>
+</body>
+</html>
