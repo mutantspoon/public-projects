@@ -39,7 +39,7 @@ export function newLayout() {
   updateStatusBar('New layout created');
 }
 
-export function saveLayout() {
+export async function saveLayout() {
   const data = {
     version: state.version,
     scale: SCALE,
@@ -50,6 +50,32 @@ export function saveLayout() {
   };
 
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+
+  // Try File System Access API for save dialog
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: 'floor-plan.layout',
+        types: [{
+          description: 'Layout File',
+          accept: { 'application/json': ['.layout'] }
+        }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      updateStatusBar('Saved: ' + handle.name);
+      return;
+    } catch (err) {
+      // User cancelled or API failed, fall through to legacy download
+      if (err.name === 'AbortError') {
+        updateStatusBar('Save cancelled');
+        return;
+      }
+    }
+  }
+
+  // Fallback: legacy download
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

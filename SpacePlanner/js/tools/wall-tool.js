@@ -1,7 +1,7 @@
 // js/tools/wall-tool.js - Wall drawing tool (creation only)
 // Editing/handles are managed by selection.js
 
-import { WALL_THICKNESS, SNAP_THRESHOLD, HANDLE_RADIUS, HANDLE_STROKE, LABEL_FONT_SIZE } from '../constants.js';
+import { WALL_THICKNESS, HANDLE_RADIUS, HANDLE_STROKE, LABEL_FONT_SIZE } from '../constants.js';
 import { appState, state, getActiveLayer } from '../state.js';
 import { uiLayer, stage } from '../konva-setup.js';
 import { generateUUID, distance, pixelsToInches, formatDimension, updateStatusBar } from '../utils.js';
@@ -66,9 +66,9 @@ export function handleWallMove(x, y) {
   clearWallGhost();
 
   if (!wallStart) {
-    const snapped = getSnappedPoint(x, y);
+    // Show snap indicator if near a vertex
     const nearVertex = findNearestVertex(x, y);
-    if (nearVertex && distance(x, y, nearVertex.x, nearVertex.y) < SNAP_THRESHOLD) {
+    if (nearVertex) {
       showSnapIndicator(nearVertex.x, nearVertex.y, 'start');
     }
     return;

@@ -83,6 +83,24 @@
 
     <!-- Rectangle Panel (hidden by default) -->
     <div id="rectangle-panel" class="hidden pb-3 mb-3 border-b border-cream-300">
+      <!-- Dimensions (shown when rectangle selected) -->
+      <div id="rect-dimensions" class="mb-2">
+        <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-1">Dimensions</label>
+        <div class="grid grid-cols-2 gap-1">
+          <div>
+            <label class="text-[9px] text-slate-500">Width</label>
+            <input type="text" id="rect-width-input" placeholder="e.g. 10'"
+              class="w-full px-2 py-1 text-xs border border-cream-300 rounded bg-cream-100 text-slate-700 focus:border-sage-400 focus:outline-none">
+          </div>
+          <div>
+            <label class="text-[9px] text-slate-500">Height</label>
+            <input type="text" id="rect-height-input" placeholder="e.g. 8'"
+              class="w-full px-2 py-1 text-xs border border-cream-300 rounded bg-cream-100 text-slate-700 focus:border-sage-400 focus:outline-none">
+          </div>
+        </div>
+        <div class="text-[9px] text-slate-400 mt-1">Press Enter to apply</div>
+      </div>
+
       <div class="flex items-center justify-between mb-1">
         <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Color</label>
         <label class="flex items-center text-[10px] text-slate-600 cursor-pointer">

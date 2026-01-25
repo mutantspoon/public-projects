@@ -7,7 +7,6 @@
   var SNAP_GRID = GRID_SECONDARY;
   var SNAP_THRESHOLD = 15;
   var WALL_THICKNESS = 6;
-  var WALL_HIT_WIDTH = 25;
   var HANDLE_RADIUS = 8;
   var HANDLE_STROKE = 2;
   var HIGHLIGHT_STROKE = 2;
@@ -134,8 +133,8 @@
 
   // js/history.js
   var renderAllObjectsCallback = null;
-  function setHistoryCallbacks(callbacks8) {
-    renderAllObjectsCallback = callbacks8.renderAllObjects;
+  function setHistoryCallbacks(callbacks9) {
+    renderAllObjectsCallback = callbacks9.renderAllObjects;
   }
   function saveSnapshot() {
     history.undoStack.push(JSON.parse(JSON.stringify(state.objects)));
@@ -169,35 +168,26 @@
   // js/snapping.js
   var isSnapModifier = () => appState.ctrlPressed || appState.metaPressed;
   var getSnapSize = () => isSnapModifier() ? GRID_PRIMARY : SNAP_GRID;
-  var snapToGrid = (value, gridSize) => {
-    const gs = gridSize || getSnapSize();
-    return Math.round(value / gs) * gs;
-  };
-  function pointOnLine(x1, y1, x2, y2, px, py, threshold = WALL_HIT_WIDTH) {
-    const len = distance(x1, y1, x2, y2);
-    if (len === 0) return null;
-    const dx = x2 - x1, dy = y2 - y1;
-    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (len * len)));
-    const cx = x1 + t * dx, cy = y1 + t * dy;
-    if (distance(px, py, cx, cy) > threshold) return null;
-    const gridSize = getSnapSize();
-    if (Math.abs(dx) > Math.abs(dy)) {
-      const snappedX = snapToGrid(cx, gridSize);
-      const clampedX = Math.max(Math.min(x1, x2), Math.min(Math.max(x1, x2), snappedX));
-      const tSnapped = (clampedX - x1) / dx;
-      return { x: clampedX, y: y1 + tSnapped * dy };
-    } else {
-      const snappedY = snapToGrid(cy, gridSize);
-      const clampedY = Math.max(Math.min(y1, y2), Math.min(Math.max(y1, y2), snappedY));
-      const tSnapped = dy !== 0 ? (clampedY - y1) / dy : 0;
-      return { x: x1 + tSnapped * dx, y: clampedY };
-    }
+  function snapPointToGrid(x, y) {
+    const gs = getSnapSize();
+    return {
+      x: Math.round(x / gs) * gs,
+      y: Math.round(y / gs) * gs
+    };
+  }
+  function getWorldThreshold() {
+    const scale = stage.scaleX();
+    const clampedScale = Math.max(0.1, Math.min(10, scale));
+    return SNAP_THRESHOLD / clampedScale;
   }
   function findNearestVertex(x, y) {
-    let nearest = null, minDist = SNAP_THRESHOLD;
-    state.objects.forEach((obj) => {
+    const threshold = getWorldThreshold();
+    let nearest = null;
+    let minDist = threshold;
+    for (const obj of state.objects) {
       if (obj.type === "wall") {
-        const d1 = distance(x, y, obj.x1, obj.y1), d2 = distance(x, y, obj.x2, obj.y2);
+        const d1 = distance(x, y, obj.x1, obj.y1);
+        const d2 = distance(x, y, obj.x2, obj.y2);
         if (d1 < minDist) {
           minDist = d1;
           nearest = { x: obj.x1, y: obj.y1 };
@@ -207,37 +197,8 @@
           nearest = { x: obj.x2, y: obj.y2 };
         }
       }
-    });
+    }
     return nearest;
-  }
-  function findWallAtPoint(x, y) {
-    for (let obj of state.objects) {
-      if (obj.type === "wall") {
-        const pt = pointOnLine(obj.x1, obj.y1, obj.x2, obj.y2, x, y);
-        if (pt) return { wall: obj, point: pt };
-      }
-    }
-    return null;
-  }
-  function findSmartGuides(x, y) {
-    const guides = { x: [], y: [] };
-    state.objects.forEach((obj) => {
-      if (obj.type === "rectangle") {
-        guides.x.push(obj.x, obj.x + obj.width, obj.x + obj.width / 2);
-        guides.y.push(obj.y, obj.y + obj.height, obj.y + obj.height / 2);
-      } else if (obj.type === "wall") {
-        guides.x.push(obj.x1, obj.x2);
-        guides.y.push(obj.y1, obj.y2);
-      }
-    });
-    let snapX = null, snapY = null;
-    for (const gx of guides.x) {
-      if (Math.abs(x - gx) < SNAP_THRESHOLD && (snapX === null || Math.abs(x - gx) < Math.abs(x - snapX))) snapX = gx;
-    }
-    for (const gy of guides.y) {
-      if (Math.abs(y - gy) < SNAP_THRESHOLD && (snapY === null || Math.abs(y - gy) < Math.abs(y - snapY))) snapY = gy;
-    }
-    return { x: snapX, y: snapY };
   }
   function getSnappedPoint(x, y, axisLock = null) {
     if (axisLock) {
@@ -247,18 +208,15 @@
     const vertex = findNearestVertex(x, y);
     if (vertex) {
       if (axisLock) {
-        if (axisLock.axis === "x" && Math.abs(vertex.x - axisLock.value) < SNAP_THRESHOLD) return { x: axisLock.value, y: vertex.y };
-        if (axisLock.axis === "y" && Math.abs(vertex.y - axisLock.value) < SNAP_THRESHOLD) return { x: vertex.x, y: axisLock.value };
-      } else {
-        return vertex;
+        if (axisLock.axis === "x") {
+          return { x: axisLock.value, y: vertex.y };
+        } else {
+          return { x: vertex.x, y: axisLock.value };
+        }
       }
+      return vertex;
     }
-    const wallSnap = findWallAtPoint(x, y);
-    if (wallSnap && !axisLock) return wallSnap.point;
-    const guides = findSmartGuides(x, y);
-    const snappedX = guides.x !== null ? guides.x : snapToGrid(x);
-    const snappedY = guides.y !== null ? guides.y : snapToGrid(y);
-    return { x: snappedX, y: snappedY };
+    return snapPointToGrid(x, y);
   }
   function getAxisLock(startPoint, currentX, currentY) {
     if (!appState.shiftPressed || !startPoint) return null;
@@ -271,50 +229,18 @@
   function screenSize(pixels) {
     return pixels / stage.scaleX();
   }
-  function getViewportBounds() {
-    const scale = stage.scaleX();
-    const pos = stage.position();
-    return {
-      left: -pos.x / scale,
-      top: -pos.y / scale,
-      right: (stage.width() - pos.x) / scale,
-      bottom: (stage.height() - pos.y) / scale
-    };
-  }
-  function isPointVisible(x, y) {
-    const vp = getViewportBounds();
-    return x >= vp.left && x <= vp.right && y >= vp.top && y <= vp.bottom;
-  }
-  function clampLabelPosition(x1, y1, x2, y2, midX, midY) {
-    if (isPointVisible(midX, midY)) {
-      return { x: midX, y: midY };
-    }
-    const vp = getViewportBounds();
-    const margin = screenSize(50);
-    let clampedX = Math.max(vp.left + margin, Math.min(vp.right - margin, midX));
-    let clampedY = Math.max(vp.top + margin, Math.min(vp.bottom - margin, midY));
-    const dx = x2 - x1, dy = y2 - y1;
-    const len2 = dx * dx + dy * dy;
-    if (len2 > 0) {
-      let t = ((clampedX - x1) * dx + (clampedY - y1) * dy) / len2;
-      t = Math.max(0.1, Math.min(0.9, t));
-      clampedX = x1 + t * dx;
-      clampedY = y1 + t * dy;
-      clampedX = Math.max(vp.left + margin, Math.min(vp.right - margin, clampedX));
-      clampedY = Math.max(vp.top + margin, Math.min(vp.bottom - margin, clampedY));
-    }
-    return { x: clampedX, y: clampedY };
-  }
-  var renderAllObjects = null;
-  var showRectanglePanel = null;
-  var updateRectanglePanelFromSelection = null;
-  var updateMoveToLayerButton = null;
+  var callbacks = {
+    renderAllObjects: null,
+    showRectanglePanel: null,
+    updateRectanglePanelFromSelection: null,
+    updateMoveToLayerButton: null
+  };
   function setSelectionCallbacks(cb) {
-    if (cb.renderAllObjects) renderAllObjects = cb.renderAllObjects;
-    if (cb.showRectanglePanel) showRectanglePanel = cb.showRectanglePanel;
-    if (cb.updateRectanglePanelFromSelection) updateRectanglePanelFromSelection = cb.updateRectanglePanelFromSelection;
-    if (cb.updateMoveToLayerButton) updateMoveToLayerButton = cb.updateMoveToLayerButton;
+    Object.assign(callbacks, cb);
   }
+  var highlights = [];
+  var handles = [];
+  var currentObjectId = null;
   function selectObject(id) {
     const obj = state.objects.find((o) => o.id === id);
     if (!obj) return;
@@ -326,57 +252,34 @@
       deselectObject();
     }
     appState.selectedId = id;
-    drawSelectionHighlight(obj);
-    createHandles(obj);
-    if (obj.type === "rectangle") {
-      if (showRectanglePanel) showRectanglePanel(true);
-      if (updateRectanglePanelFromSelection) updateRectanglePanelFromSelection(obj);
+    currentObjectId = id;
+    drawHighlight(obj);
+    if (obj.type === "wall") {
+      createWallHandles(obj);
     }
-    if (updateMoveToLayerButton) updateMoveToLayerButton();
+    if (obj.type === "rectangle") {
+      if (callbacks.showRectanglePanel) callbacks.showRectanglePanel(true);
+      if (callbacks.updateRectanglePanelFromSelection) callbacks.updateRectanglePanelFromSelection(obj);
+    }
+    if (callbacks.updateMoveToLayerButton) callbacks.updateMoveToLayerButton();
     updateStatusBar(`Selected: ${obj.type}`);
   }
   function deselectObject() {
-    clearAllHighlights();
-    clearAllHandles();
-    clearAllPreviews();
-    clearMultiSelectGroup();
-    if (showRectanglePanel) showRectanglePanel(false);
+    clearHighlights();
+    clearHandles();
+    clearMultiDragGroup();
+    if (callbacks.showRectanglePanel) callbacks.showRectanglePanel(false);
     appState.selectedId = null;
     appState.selectedIds = [];
-    if (updateMoveToLayerButton) updateMoveToLayerButton();
+    currentObjectId = null;
+    if (callbacks.updateMoveToLayerButton) callbacks.updateMoveToLayerButton();
     uiLayer.batchDraw();
-    contentLayer.batchDraw();
   }
-  function selectObjects(ids) {
-    if (ids.length === 0) return;
-    if (ids.length === 1) {
-      selectObject(ids[0]);
-      return;
-    }
-    deselectObject();
-    const editableIds = ids.filter((id) => {
-      const obj = state.objects.find((o) => o.id === id);
-      return obj && isObjectEditable(obj);
-    });
-    if (editableIds.length === 0) return;
-    if (editableIds.length === 1) {
-      selectObject(editableIds[0]);
-      return;
-    }
-    appState.selectedIds = editableIds;
-    appState.selectedId = null;
-    const objects = editableIds.map((id) => state.objects.find((o) => o.id === id)).filter(Boolean);
-    drawMultiSelectionHighlights(objects);
-    createMultiSelectDragGroup(objects);
-    if (updateMoveToLayerButton) updateMoveToLayerButton();
-    updateStatusBar(`Selected ${editableIds.length} objects (drag to move)`);
-  }
-  var highlights = [];
-  function createHighlightForObject(obj) {
-    const ss = screenSize;
-    const pad = ss(4);
-    const stroke = ss(HIGHLIGHT_STROKE);
-    const dash = [ss(6), ss(4)];
+  function drawHighlight(obj) {
+    clearHighlights();
+    const pad = screenSize(4);
+    const stroke = screenSize(HIGHLIGHT_STROKE);
+    const dash = [screenSize(6), screenSize(4)];
     let highlight = null;
     if (obj.type === "wall") {
       const minX = Math.min(obj.x1, obj.x2);
@@ -391,9 +294,7 @@
         stroke: "#528A81",
         strokeWidth: stroke,
         dash,
-        opacity: 0.9,
-        listening: false,
-        name: "highlight-" + obj.id
+        listening: false
       });
     } else if (obj.type === "rectangle") {
       highlight = new Konva.Rect({
@@ -404,9 +305,7 @@
         stroke: "#528A81",
         strokeWidth: stroke,
         dash,
-        opacity: 0.9,
-        listening: false,
-        name: "highlight-" + obj.id
+        listening: false
       });
     } else if (obj.type === "text" || obj.type === "label") {
       const shape = contentLayer.findOne("#" + obj.id);
@@ -420,321 +319,96 @@
         stroke: "#528A81",
         strokeWidth: stroke,
         dash,
-        opacity: 0.9,
-        listening: false,
-        name: "highlight-" + obj.id
+        listening: false
       });
     }
-    return highlight;
-  }
-  function drawSelectionHighlight(obj) {
-    clearAllHighlights();
-    const highlight = createHighlightForObject(obj);
     if (highlight) {
       highlights.push(highlight);
       uiLayer.add(highlight);
       uiLayer.batchDraw();
     }
   }
-  function drawMultiSelectionHighlights(objects) {
-    clearAllHighlights();
-    for (const obj of objects) {
-      const highlight = createHighlightForObject(obj);
-      if (highlight) {
-        highlights.push(highlight);
-        uiLayer.add(highlight);
-      }
-    }
-    uiLayer.batchDraw();
-  }
-  function clearAllHighlights() {
+  function clearHighlights() {
     highlights.forEach((h) => h.destroy());
     highlights = [];
   }
-  function refreshSelectionUI() {
-    if (appState.selectedIds.length > 0) {
-      const objects = appState.selectedIds.map((id) => state.objects.find((o) => o.id === id)).filter(Boolean);
-      if (objects.length > 1) {
-        drawMultiSelectionHighlights(objects);
-        createMultiSelectDragGroup(objects);
-      } else if (objects.length === 1) {
-        drawSelectionHighlight(objects[0]);
-        createHandles(objects[0]);
-      }
-      return;
-    }
-    if (!appState.selectedId) return;
-    const obj = state.objects.find((o) => o.id === appState.selectedId);
-    if (obj) {
-      drawSelectionHighlight(obj);
-      createHandles(obj);
-    }
-  }
-  var handles = [];
-  var currentObjectId = null;
-  function createHandles(obj) {
-    clearAllHandles();
-    currentObjectId = obj.id;
-    if (obj.type === "wall") {
-      createWallHandles(obj);
-    } else if (obj.type === "rectangle") {
-      createRectangleHandles(obj);
-    }
-    uiLayer.batchDraw();
-  }
-  function clearAllHandles() {
-    handles.forEach((h) => h.destroy());
-    handles = [];
-    currentObjectId = null;
-  }
   function createWallHandles(wallObj) {
-    [1, 2].forEach((i) => {
+    clearHandles();
+    [1, 2].forEach((endpointIndex) => {
+      const x = endpointIndex === 1 ? wallObj.x1 : wallObj.x2;
+      const y = endpointIndex === 1 ? wallObj.y1 : wallObj.y2;
       const handle = new Konva.Circle({
-        x: i === 1 ? wallObj.x1 : wallObj.x2,
-        y: i === 1 ? wallObj.y1 : wallObj.y2,
+        x,
+        y,
         radius: screenSize(HANDLE_RADIUS + 2),
         fill: "#528A81",
         stroke: "#2D453E",
         strokeWidth: screenSize(HANDLE_STROKE),
         draggable: true,
-        name: "handle"
+        name: "wall-handle"
+      });
+      let startX, startY;
+      handle.on("dragstart", () => {
+        startX = handle.x();
+        startY = handle.y();
+        clearHighlights();
       });
       handle.on("dragmove", () => {
-        clearAllHighlights();
         const snapped = getSnappedPoint(handle.x(), handle.y());
         handle.position(snapped);
-        const current = state.objects.find((o) => o.id === currentObjectId);
-        if (current) updateWallPreview(current, i, snapped);
+        const wall = state.objects.find((o) => o.id === currentObjectId);
+        if (wall) {
+          showWallPreview(wall, endpointIndex, snapped);
+        }
       });
       handle.on("dragend", () => {
-        const current = state.objects.find((o) => o.id === currentObjectId);
-        if (!current) return;
+        const wall = state.objects.find((o) => o.id === currentObjectId);
+        if (!wall) return;
         saveSnapshot();
-        if (i === 1) {
-          current.x1 = handle.x();
-          current.y1 = handle.y();
+        const snapped = getSnappedPoint(handle.x(), handle.y());
+        if (endpointIndex === 1) {
+          wall.x1 = snapped.x;
+          wall.y1 = snapped.y;
         } else {
-          current.x2 = handle.x();
-          current.y2 = handle.y();
+          wall.x2 = snapped.x;
+          wall.y2 = snapped.y;
         }
-        clearAllPreviews();
-        if (renderAllObjects) renderAllObjects();
+        clearPreview();
+        if (callbacks.renderAllObjects) callbacks.renderAllObjects();
         const updated = state.objects.find((o) => o.id === currentObjectId);
         if (updated) {
-          drawSelectionHighlight(updated);
-          createHandles(updated);
+          drawHighlight(updated);
+          createWallHandles(updated);
         }
       });
       uiLayer.add(handle);
       handles.push(handle);
     });
-  }
-  var RECT_HANDLE_POSITIONS = [
-    { name: "top-left", getX: (r) => r.x, getY: (r) => r.y },
-    { name: "top-center", getX: (r) => r.x + r.width / 2, getY: (r) => r.y },
-    { name: "top-right", getX: (r) => r.x + r.width, getY: (r) => r.y },
-    { name: "middle-left", getX: (r) => r.x, getY: (r) => r.y + r.height / 2 },
-    { name: "middle-right", getX: (r) => r.x + r.width, getY: (r) => r.y + r.height / 2 },
-    { name: "bottom-left", getX: (r) => r.x, getY: (r) => r.y + r.height },
-    { name: "bottom-center", getX: (r) => r.x + r.width / 2, getY: (r) => r.y + r.height },
-    { name: "bottom-right", getX: (r) => r.x + r.width, getY: (r) => r.y + r.height }
-  ];
-  function createRectangleHandles(rectObj) {
-    RECT_HANDLE_POSITIONS.forEach((pos) => {
-      const handle = new Konva.Circle({
-        x: pos.getX(rectObj),
-        y: pos.getY(rectObj),
-        radius: screenSize(HANDLE_RADIUS),
-        fill: "#528A81",
-        stroke: "#2D453E",
-        strokeWidth: screenSize(HANDLE_STROKE),
-        draggable: true,
-        name: "handle"
-      });
-      handle.on("dragmove", () => {
-        clearAllHighlights();
-        const snapped = getSnappedPoint(handle.x(), handle.y());
-        handle.position(snapped);
-        const current = state.objects.find((o) => o.id === currentObjectId);
-        if (current) updateRectanglePreview(current, pos.name, snapped);
-      });
-      handle.on("dragend", () => {
-        const current = state.objects.find((o) => o.id === currentObjectId);
-        if (!current) return;
-        saveSnapshot();
-        const newBounds = calculateRectBounds(current, pos.name, handle.x(), handle.y());
-        current.x = newBounds.x;
-        current.y = newBounds.y;
-        current.width = newBounds.width;
-        current.height = newBounds.height;
-        clearAllPreviews();
-        if (renderAllObjects) renderAllObjects();
-        const updated = state.objects.find((o) => o.id === currentObjectId);
-        if (updated) {
-          drawSelectionHighlight(updated);
-          createHandles(updated);
-        }
-      });
-      uiLayer.add(handle);
-      handles.push(handle);
-    });
-  }
-  function calculateRectBounds(rect, handleName, newX, newY) {
-    let x = rect.x, y = rect.y, width = rect.width, height = rect.height;
-    switch (handleName) {
-      case "top-left":
-        width = rect.x + rect.width - newX;
-        height = rect.y + rect.height - newY;
-        x = newX;
-        y = newY;
-        break;
-      case "top-center":
-        height = rect.y + rect.height - newY;
-        y = newY;
-        break;
-      case "top-right":
-        width = newX - rect.x;
-        height = rect.y + rect.height - newY;
-        y = newY;
-        break;
-      case "middle-left":
-        width = rect.x + rect.width - newX;
-        x = newX;
-        break;
-      case "middle-right":
-        width = newX - rect.x;
-        break;
-      case "bottom-left":
-        width = rect.x + rect.width - newX;
-        height = newY - rect.y;
-        x = newX;
-        break;
-      case "bottom-center":
-        height = newY - rect.y;
-        break;
-      case "bottom-right":
-        width = newX - rect.x;
-        height = newY - rect.y;
-        break;
-    }
-    if (width < 10) width = 10;
-    if (height < 10) height = 10;
-    return { x, y, width, height };
-  }
-  var multiSelectGroup = null;
-  var multiSelectStartPositions = [];
-  function getMultiSelectBounds(objects) {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const obj of objects) {
-      if (obj.type === "wall") {
-        minX = Math.min(minX, obj.x1, obj.x2);
-        minY = Math.min(minY, obj.y1, obj.y2);
-        maxX = Math.max(maxX, obj.x1, obj.x2);
-        maxY = Math.max(maxY, obj.y1, obj.y2);
-      } else if (obj.type === "rectangle") {
-        minX = Math.min(minX, obj.x);
-        minY = Math.min(minY, obj.y);
-        maxX = Math.max(maxX, obj.x + obj.width);
-        maxY = Math.max(maxY, obj.y + obj.height);
-      } else if (obj.type === "text" || obj.type === "label") {
-        minX = Math.min(minX, obj.x);
-        minY = Math.min(minY, obj.y);
-        maxX = Math.max(maxX, obj.x + 100);
-        maxY = Math.max(maxY, obj.y + 20);
-      }
-    }
-    const pad = screenSize(10);
-    return { x: minX - pad, y: minY - pad, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2 };
-  }
-  function createMultiSelectDragGroup(objects) {
-    clearMultiSelectGroup();
-    const bounds = getMultiSelectBounds(objects);
-    multiSelectStartPositions = objects.map((obj) => {
-      if (obj.type === "wall") {
-        return { id: obj.id, x1: obj.x1, y1: obj.y1, x2: obj.x2, y2: obj.y2 };
-      } else {
-        return { id: obj.id, x: obj.x, y: obj.y };
-      }
-    });
-    multiSelectGroup = new Konva.Rect({
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height,
-      fill: "transparent",
-      stroke: "#528A81",
-      strokeWidth: screenSize(1),
-      dash: [screenSize(8), screenSize(4)],
-      draggable: true,
-      name: "multi-select-group"
-    });
-    const startX = bounds.x;
-    const startY = bounds.y;
-    multiSelectGroup.on("dragmove", () => {
-      const dx = multiSelectGroup.x() - startX;
-      const dy = multiSelectGroup.y() - startY;
-      for (const startPos of multiSelectStartPositions) {
-        const obj = state.objects.find((o) => o.id === startPos.id);
-        if (!obj) continue;
-        if (obj.type === "wall") {
-          obj.x1 = startPos.x1 + dx;
-          obj.y1 = startPos.y1 + dy;
-          obj.x2 = startPos.x2 + dx;
-          obj.y2 = startPos.y2 + dy;
-        } else {
-          obj.x = startPos.x + dx;
-          obj.y = startPos.y + dy;
-        }
-      }
-      const currentObjects = appState.selectedIds.map((id) => state.objects.find((o) => o.id === id)).filter(Boolean);
-      drawMultiSelectionHighlights(currentObjects);
-      if (renderAllObjects) renderAllObjects();
-    });
-    multiSelectGroup.on("dragend", () => {
-      saveSnapshot();
-      const dx = multiSelectGroup.x() - startX;
-      const dy = multiSelectGroup.y() - startY;
-      const snapped = getSnappedPoint(startX + dx, startY + dy);
-      const snapDx = snapped.x - startX;
-      const snapDy = snapped.y - startY;
-      for (const startPos of multiSelectStartPositions) {
-        const obj = state.objects.find((o) => o.id === startPos.id);
-        if (!obj) continue;
-        if (obj.type === "wall") {
-          obj.x1 = startPos.x1 + snapDx;
-          obj.y1 = startPos.y1 + snapDy;
-          obj.x2 = startPos.x2 + snapDx;
-          obj.y2 = startPos.y2 + snapDy;
-        } else {
-          obj.x = startPos.x + snapDx;
-          obj.y = startPos.y + snapDy;
-        }
-      }
-      if (renderAllObjects) renderAllObjects();
-      const currentObjects = appState.selectedIds.map((id) => state.objects.find((o) => o.id === id)).filter(Boolean);
-      drawMultiSelectionHighlights(currentObjects);
-      createMultiSelectDragGroup(currentObjects);
-    });
-    uiLayer.add(multiSelectGroup);
     uiLayer.batchDraw();
   }
-  function clearMultiSelectGroup() {
-    if (multiSelectGroup) {
-      multiSelectGroup.destroy();
-      multiSelectGroup = null;
-    }
-    multiSelectStartPositions = [];
+  function clearHandles() {
+    handles.forEach((h) => h.destroy());
+    handles = [];
   }
-  var previewShape = null;
+  function refreshSelectionUI() {
+    if (!appState.selectedId) return;
+    const obj = state.objects.find((o) => o.id === appState.selectedId);
+    if (obj) {
+      drawHighlight(obj);
+      if (obj.type === "wall") {
+        createWallHandles(obj);
+      }
+    }
+  }
+  var previewLine = null;
   var previewLabel = null;
-  var previewLabel2 = null;
-  function updateWallPreview(wallObj, endpointIndex, newPos) {
-    clearAllPreviews();
-    const x1 = endpointIndex === 1 ? newPos.x : wallObj.x1;
-    const y1 = endpointIndex === 1 ? newPos.y : wallObj.y1;
-    const x2 = endpointIndex === 2 ? newPos.x : wallObj.x2;
-    const y2 = endpointIndex === 2 ? newPos.y : wallObj.y2;
-    previewShape = new Konva.Line({
+  function showWallPreview(wall, endpointIndex, newPos) {
+    clearPreview();
+    const x1 = endpointIndex === 1 ? newPos.x : wall.x1;
+    const y1 = endpointIndex === 1 ? newPos.y : wall.y1;
+    const x2 = endpointIndex === 2 ? newPos.x : wall.x2;
+    const y2 = endpointIndex === 2 ? newPos.y : wall.y2;
+    previewLine = new Konva.Line({
       points: [x1, y1, x2, y2],
       stroke: "#528A81",
       strokeWidth: screenSize(WALL_THICKNESS),
@@ -742,7 +416,7 @@
       opacity: 0.7,
       listening: false
     });
-    uiLayer.add(previewShape);
+    uiLayer.add(previewLine);
     const len = distance(x1, y1, x2, y2);
     const inches = pixelsToInches(len);
     const midX = (x1 + x2) / 2;
@@ -752,10 +426,9 @@
     const textRot = normAngle > 90 && normAngle < 270 ? angle + 180 : angle;
     const fontSize = screenSize(LABEL_FONT_SIZE + 2);
     const labelText = formatDimension(inches);
-    const labelPos = clampLabelPosition(x1, y1, x2, y2, midX, midY);
     previewLabel = new Konva.Text({
-      x: labelPos.x,
-      y: labelPos.y - screenSize(20),
+      x: midX,
+      y: midY - screenSize(20),
       text: labelText,
       fontSize,
       fill: "#528A81",
@@ -767,59 +440,14 @@
     uiLayer.add(previewLabel);
     uiLayer.batchDraw();
   }
-  function updateRectanglePreview(rectObj, handleName, newPos) {
-    clearAllPreviews();
-    const newBounds = calculateRectBounds(rectObj, handleName, newPos.x, newPos.y);
-    const fontSize = screenSize(LABEL_FONT_SIZE + 2);
-    previewShape = new Konva.Rect({
-      x: newBounds.x,
-      y: newBounds.y,
-      width: newBounds.width,
-      height: newBounds.height,
-      stroke: "#528A81",
-      strokeWidth: screenSize(WALL_THICKNESS),
-      fill: rectObj.fill || "",
-      opacity: 0.7,
-      listening: false
-    });
-    uiLayer.add(previewShape);
-    const widthText = formatDimension(pixelsToInches(newBounds.width));
-    const heightText = formatDimension(pixelsToInches(newBounds.height));
-    previewLabel = new Konva.Text({
-      x: newBounds.x + newBounds.width / 2,
-      y: newBounds.y + newBounds.height + screenSize(8),
-      text: widthText,
-      fontSize,
-      fill: "#528A81",
-      fontStyle: "bold",
-      offsetX: widthText.length * fontSize * 0.25,
-      listening: false
-    });
-    previewLabel2 = new Konva.Text({
-      x: newBounds.x + newBounds.width + screenSize(15),
-      y: newBounds.y + newBounds.height / 2 + heightText.length * fontSize * 0.25,
-      text: heightText,
-      fontSize,
-      fill: "#528A81",
-      fontStyle: "bold",
-      rotation: -90,
-      listening: false
-    });
-    uiLayer.add(previewLabel, previewLabel2);
-    uiLayer.batchDraw();
-  }
-  function clearAllPreviews() {
-    if (previewShape) {
-      previewShape.destroy();
-      previewShape = null;
+  function clearPreview() {
+    if (previewLine) {
+      previewLine.destroy();
+      previewLine = null;
     }
     if (previewLabel) {
       previewLabel.destroy();
       previewLabel = null;
-    }
-    if (previewLabel2) {
-      previewLabel2.destroy();
-      previewLabel2 = null;
     }
   }
   function deleteSelectedObject() {
@@ -831,7 +459,7 @@
         if (idx2 !== -1) state.objects.splice(idx2, 1);
       }
       deselectObject();
-      if (renderAllObjects) renderAllObjects();
+      if (callbacks.renderAllObjects) callbacks.renderAllObjects();
       updateStatusBar(`Deleted ${count} objects`);
       return;
     }
@@ -841,7 +469,7 @@
     if (idx !== -1) {
       state.objects.splice(idx, 1);
       deselectObject();
-      if (renderAllObjects) renderAllObjects();
+      if (callbacks.renderAllObjects) callbacks.renderAllObjects();
       updateStatusBar("Object deleted");
     }
   }
@@ -851,7 +479,7 @@
     if (idx !== -1) {
       if (appState.selectedId === id) deselectObject();
       state.objects.splice(idx, 1);
-      if (renderAllObjects) renderAllObjects();
+      if (callbacks.renderAllObjects) callbacks.renderAllObjects();
       updateStatusBar("Object deleted");
     }
   }
@@ -908,8 +536,10 @@
     boxSelectRect = null;
     boxSelectStart = null;
     uiLayer.batchDraw();
-    if (selectedObjects.length > 0) {
-      selectObjects(selectedObjects.map((o) => o.id));
+    if (selectedObjects.length === 1) {
+      selectObject(selectedObjects[0].id);
+    } else if (selectedObjects.length > 1) {
+      selectMultiple(selectedObjects.map((o) => o.id));
     }
     return selectedObjects;
   }
@@ -924,8 +554,182 @@
   function isBoxSelecting() {
     return boxSelectStart !== null;
   }
+  var multiSelectGroup = null;
+  var multiSelectStartPositions = [];
+  function selectMultiple(ids) {
+    deselectObject();
+    const editableIds = ids.filter((id) => {
+      const obj = state.objects.find((o) => o.id === id);
+      return obj && isObjectEditable(obj);
+    });
+    if (editableIds.length === 0) return;
+    if (editableIds.length === 1) {
+      selectObject(editableIds[0]);
+      return;
+    }
+    appState.selectedIds = editableIds;
+    appState.selectedId = null;
+    const objects = editableIds.map((id) => state.objects.find((o) => o.id === id)).filter(Boolean);
+    drawMultiHighlights(objects);
+    createMultiDragGroup(objects);
+    if (callbacks.updateMoveToLayerButton) callbacks.updateMoveToLayerButton();
+    updateStatusBar(`Selected ${editableIds.length} objects`);
+  }
+  function selectObjects(ids) {
+    selectMultiple(ids);
+  }
+  function drawMultiHighlights(objects) {
+    clearHighlights();
+    const pad = screenSize(4);
+    const stroke = screenSize(HIGHLIGHT_STROKE);
+    const dash = [screenSize(6), screenSize(4)];
+    for (const obj of objects) {
+      let highlight = null;
+      if (obj.type === "wall") {
+        const minX = Math.min(obj.x1, obj.x2);
+        const minY = Math.min(obj.y1, obj.y2);
+        const maxX = Math.max(obj.x1, obj.x2);
+        const maxY = Math.max(obj.y1, obj.y2);
+        highlight = new Konva.Rect({
+          x: minX - pad,
+          y: minY - pad,
+          width: maxX - minX + pad * 2,
+          height: maxY - minY + pad * 2,
+          stroke: "#528A81",
+          strokeWidth: stroke,
+          dash,
+          listening: false
+        });
+      } else if (obj.type === "rectangle") {
+        highlight = new Konva.Rect({
+          x: obj.x - pad,
+          y: obj.y - pad,
+          width: obj.width + pad * 2,
+          height: obj.height + pad * 2,
+          stroke: "#528A81",
+          strokeWidth: stroke,
+          dash,
+          listening: false
+        });
+      } else if (obj.type === "text" || obj.type === "label") {
+        const shape = contentLayer.findOne("#" + obj.id);
+        highlight = new Konva.Rect({
+          x: obj.x - pad,
+          y: obj.y - pad,
+          width: (shape ? shape.width() : 50) + pad * 2,
+          height: (shape ? shape.height() : 20) + pad * 2,
+          stroke: "#528A81",
+          strokeWidth: stroke,
+          dash,
+          listening: false
+        });
+      }
+      if (highlight) {
+        highlights.push(highlight);
+        uiLayer.add(highlight);
+      }
+    }
+    uiLayer.batchDraw();
+  }
+  function createMultiDragGroup(objects) {
+    clearMultiDragGroup();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const obj of objects) {
+      if (obj.type === "wall") {
+        minX = Math.min(minX, obj.x1, obj.x2);
+        minY = Math.min(minY, obj.y1, obj.y2);
+        maxX = Math.max(maxX, obj.x1, obj.x2);
+        maxY = Math.max(maxY, obj.y1, obj.y2);
+      } else if (obj.type === "rectangle") {
+        minX = Math.min(minX, obj.x);
+        minY = Math.min(minY, obj.y);
+        maxX = Math.max(maxX, obj.x + obj.width);
+        maxY = Math.max(maxY, obj.y + obj.height);
+      } else {
+        minX = Math.min(minX, obj.x);
+        minY = Math.min(minY, obj.y);
+        maxX = Math.max(maxX, obj.x + 100);
+        maxY = Math.max(maxY, obj.y + 20);
+      }
+    }
+    const pad = screenSize(10);
+    const bounds = { x: minX - pad, y: minY - pad, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2 };
+    multiSelectStartPositions = objects.map((obj) => {
+      if (obj.type === "wall") {
+        return { id: obj.id, x1: obj.x1, y1: obj.y1, x2: obj.x2, y2: obj.y2 };
+      } else {
+        return { id: obj.id, x: obj.x, y: obj.y };
+      }
+    });
+    multiSelectGroup = new Konva.Rect({
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      fill: "transparent",
+      stroke: "#528A81",
+      strokeWidth: screenSize(1),
+      dash: [screenSize(8), screenSize(4)],
+      draggable: true
+    });
+    const startX = bounds.x;
+    const startY = bounds.y;
+    multiSelectGroup.on("dragmove", () => {
+      const dx = multiSelectGroup.x() - startX;
+      const dy = multiSelectGroup.y() - startY;
+      for (const startPos of multiSelectStartPositions) {
+        const obj = state.objects.find((o) => o.id === startPos.id);
+        if (!obj) continue;
+        if (obj.type === "wall") {
+          obj.x1 = startPos.x1 + dx;
+          obj.y1 = startPos.y1 + dy;
+          obj.x2 = startPos.x2 + dx;
+          obj.y2 = startPos.y2 + dy;
+        } else {
+          obj.x = startPos.x + dx;
+          obj.y = startPos.y + dy;
+        }
+      }
+      const currentObjects = appState.selectedIds.map((id) => state.objects.find((o) => o.id === id)).filter(Boolean);
+      drawMultiHighlights(currentObjects);
+      if (callbacks.renderAllObjects) callbacks.renderAllObjects();
+    });
+    multiSelectGroup.on("dragend", () => {
+      saveSnapshot();
+      const dx = multiSelectGroup.x() - startX;
+      const dy = multiSelectGroup.y() - startY;
+      const snapped = snapPointToGrid(startX + dx, startY + dy);
+      const snapDx = snapped.x - startX;
+      const snapDy = snapped.y - startY;
+      for (const startPos of multiSelectStartPositions) {
+        const obj = state.objects.find((o) => o.id === startPos.id);
+        if (!obj) continue;
+        if (obj.type === "wall") {
+          obj.x1 = startPos.x1 + snapDx;
+          obj.y1 = startPos.y1 + snapDy;
+          obj.x2 = startPos.x2 + snapDx;
+          obj.y2 = startPos.y2 + snapDy;
+        } else {
+          obj.x = startPos.x + snapDx;
+          obj.y = startPos.y + snapDy;
+        }
+      }
+      if (callbacks.renderAllObjects) callbacks.renderAllObjects();
+      const currentObjects = appState.selectedIds.map((id) => state.objects.find((o) => o.id === id)).filter(Boolean);
+      drawMultiHighlights(currentObjects);
+      createMultiDragGroup(currentObjects);
+    });
+    uiLayer.add(multiSelectGroup);
+    uiLayer.batchDraw();
+  }
+  function clearMultiDragGroup() {
+    if (multiSelectGroup) {
+      multiSelectGroup.destroy();
+      multiSelectGroup = null;
+    }
+    multiSelectStartPositions = [];
+  }
   var clipboard = [];
-  var PASTE_OFFSET = 20;
   function copySelection() {
     const objectsToCopy = [];
     if (appState.selectedIds.length > 0) {
@@ -951,7 +755,7 @@
     }
     saveSnapshot();
     const newIds = [];
-    const offset = screenSize(PASTE_OFFSET);
+    const offset = screenSize(20);
     for (const template of clipboard) {
       const newObj = JSON.parse(JSON.stringify(template));
       newObj.id = generateUUID();
@@ -968,7 +772,7 @@
       state.objects.push(newObj);
       newIds.push(newObj.id);
     }
-    if (renderAllObjects) renderAllObjects();
+    if (callbacks.renderAllObjects) callbacks.renderAllObjects();
     selectObjects(newIds);
     updateStatusBar(`Pasted ${newIds.length} object${newIds.length > 1 ? "s" : ""}`);
   }
@@ -1058,41 +862,7 @@
   function screenSize2(pixels) {
     return pixels / stage.scaleX();
   }
-  function getViewportBounds2() {
-    const scale = stage.scaleX();
-    const pos = stage.position();
-    return {
-      left: -pos.x / scale,
-      top: -pos.y / scale,
-      right: (stage.width() - pos.x) / scale,
-      bottom: (stage.height() - pos.y) / scale
-    };
-  }
-  function isPointVisible2(x, y, margin = 0) {
-    const vp = getViewportBounds2();
-    return x >= vp.left - margin && x <= vp.right + margin && y >= vp.top - margin && y <= vp.bottom + margin;
-  }
-  function clampLabelPosition2(x1, y1, x2, y2, midX, midY) {
-    if (isPointVisible2(midX, midY)) {
-      return { x: midX, y: midY };
-    }
-    const vp = getViewportBounds2();
-    const margin = screenSize2(50);
-    let clampedX = Math.max(vp.left + margin, Math.min(vp.right - margin, midX));
-    let clampedY = Math.max(vp.top + margin, Math.min(vp.bottom - margin, midY));
-    const dx = x2 - x1, dy = y2 - y1;
-    const len2 = dx * dx + dy * dy;
-    if (len2 > 0) {
-      let t = ((clampedX - x1) * dx + (clampedY - y1) * dy) / len2;
-      t = Math.max(0.1, Math.min(0.9, t));
-      clampedX = x1 + t * dx;
-      clampedY = y1 + t * dy;
-      clampedX = Math.max(vp.left + margin, Math.min(vp.right - margin, clampedX));
-      clampedY = Math.max(vp.top + margin, Math.min(vp.bottom - margin, clampedY));
-    }
-    return { x: clampedX, y: clampedY };
-  }
-  var callbacks = {
+  var callbacks2 = {
     onDelete: null,
     onSelect: null,
     onWallClick: null,
@@ -1103,7 +873,7 @@
     updateStatusBar: null
   };
   function setRenderingCallbacks(cb) {
-    callbacks = { ...callbacks, ...cb };
+    Object.assign(callbacks2, cb);
   }
   function moveTextToTop() {
     state.objects.filter((obj) => obj.type === "text" || obj.type === "label").forEach((obj) => {
@@ -1112,7 +882,7 @@
     });
     contentLayer.batchDraw();
   }
-  function renderAllObjects2() {
+  function renderAllObjects() {
     contentLayer.destroyChildren();
     const visibleObjects = state.objects.filter((obj) => {
       const layer = getLayerById(obj.layerId || DEFAULT_LAYER_ID);
@@ -1123,262 +893,308 @@
       const layerB = getLayerById(b.layerId || DEFAULT_LAYER_ID);
       return (layerA?.order || 0) - (layerB?.order || 0);
     });
-    const textObjects = [], otherObjects = [];
+    const textObjects = [];
+    const otherObjects = [];
     for (const obj of visibleObjects) {
-      (obj.type === "text" || obj.type === "label" ? textObjects : otherObjects).push(obj);
+      if (obj.type === "text" || obj.type === "label") {
+        textObjects.push(obj);
+      } else {
+        otherObjects.push(obj);
+      }
     }
     otherObjects.forEach((obj) => renderObject(obj));
     textObjects.forEach((obj) => renderObject(obj));
     contentLayer.batchDraw();
   }
   function renderObject(obj) {
-    let shape;
+    const editable = isObjectEditable(obj);
+    const isSelectTool = appState.currentTool === "select";
     if (obj.type === "wall") {
-      const group = new Konva.Group({ id: obj.id, name: "wall-group" });
-      const line = new Konva.Line({
-        points: [obj.x1, obj.y1, obj.x2, obj.y2],
-        stroke: "#2C3338",
-        strokeWidth: screenSize2(WALL_THICKNESS),
-        lineCap: "round",
-        lineJoin: "round",
-        hitStrokeWidth: screenSize2(WALL_HIT_WIDTH)
-      });
+      renderWall(obj, editable, isSelectTool);
+    } else if (obj.type === "rectangle") {
+      renderRectangle(obj, editable, isSelectTool);
+    } else if (obj.type === "text" || obj.type === "label") {
+      renderText(obj, editable, isSelectTool);
+    }
+  }
+  function renderWall(obj, editable, isSelectTool) {
+    const group = new Konva.Group({
+      id: obj.id,
+      name: "wall-group",
+      draggable: isSelectTool && editable
+    });
+    const line = new Konva.Line({
+      points: [obj.x1, obj.y1, obj.x2, obj.y2],
+      stroke: "#2C3338",
+      strokeWidth: screenSize2(WALL_THICKNESS),
+      lineCap: "round",
+      lineJoin: "round",
+      // Large hit area for easy clicking at any zoom
+      hitStrokeWidth: Math.max(20, screenSize2(30))
+    });
+    group.add(line);
+    if (appState.dimensionsVisible) {
       const len = distance(obj.x1, obj.y1, obj.x2, obj.y2);
       const inches = pixelsToInches(len);
-      const midX = (obj.x1 + obj.x2) / 2, midY = (obj.y1 + obj.y2) / 2;
+      const midX = (obj.x1 + obj.x2) / 2;
+      const midY = (obj.y1 + obj.y2) / 2;
       const angle = Math.atan2(obj.y2 - obj.y1, obj.x2 - obj.x1) * 180 / Math.PI;
       const normAngle = (angle % 360 + 360) % 360;
       const textRot = normAngle > 90 && normAngle < 270 ? angle + 180 : angle;
-      group.add(line);
-      if (appState.dimensionsVisible) {
-        const fontSize = screenSize2(LABEL_FONT_SIZE);
-        const labelText = formatDimension(inches);
-        const labelPos = clampLabelPosition2(obj.x1, obj.y1, obj.x2, obj.y2, midX, midY);
-        const dimLabel = new Konva.Text({
-          x: labelPos.x,
-          y: labelPos.y - screenSize2(15),
-          text: labelText,
-          fontSize,
-          fill: "#5C6367",
-          fontStyle: "bold",
-          rotation: textRot,
-          offsetX: labelText.length * fontSize * 0.25,
-          listening: false,
-          name: "wall-label-" + obj.id
-        });
-        group.add(dimLabel);
-      }
-      shape = group;
-      group.on("click tap", (e) => {
-        const editable = isObjectEditable(obj);
-        if (appState.currentTool === "eraser" && editable) {
-          e.cancelBubble = true;
-          if (callbacks.onDelete) callbacks.onDelete(obj.id);
-        } else if (appState.currentTool === "select" && editable) {
-          e.cancelBubble = true;
-          if (callbacks.onSelect) callbacks.onSelect(obj.id);
-        } else if (appState.currentTool === "wall") {
-          if (callbacks.onWallClick) callbacks.onWallClick();
-        }
+      const fontSize = screenSize2(LABEL_FONT_SIZE);
+      const labelText = formatDimension(inches);
+      const dimLabel = new Konva.Text({
+        x: midX,
+        y: midY - screenSize2(15),
+        text: labelText,
+        fontSize,
+        fill: "#5C6367",
+        fontStyle: "bold",
+        rotation: textRot,
+        offsetX: labelText.length * fontSize * 0.25,
+        listening: false
       });
-      shape.on("mouseenter", () => {
-        const editable = isObjectEditable(obj);
-        if (appState.currentTool === "eraser" && editable) {
-          line.opacity(0.5);
-          line.stroke("#A65E44");
-          contentLayer.batchDraw();
-          document.body.style.cursor = "pointer";
-        } else if (appState.currentTool === "select" && editable) {
-          line.opacity(0.8);
-          contentLayer.batchDraw();
-          document.body.style.cursor = "pointer";
-        } else if (appState.currentTool === "wall") {
-          line.stroke("#F3C044");
-          line.strokeWidth(screenSize2(WALL_THICKNESS + 2));
-          contentLayer.batchDraw();
-          document.body.style.cursor = "crosshair";
-        }
-        appState.hoveredId = obj.id;
-      });
-      shape.on("mouseleave", () => {
-        line.opacity(1);
-        line.stroke("#2C3338");
-        line.strokeWidth(screenSize2(WALL_THICKNESS));
-        contentLayer.batchDraw();
-        if (callbacks.getCursorForTool) document.body.style.cursor = callbacks.getCursorForTool(appState.currentTool);
-        appState.hoveredId = null;
-      });
-    } else if (obj.type === "rectangle") {
-      const editable = isObjectEditable(obj);
-      shape = new Konva.Rect({
-        id: obj.id,
-        x: obj.x,
-        y: obj.y,
-        width: obj.width,
-        height: obj.height,
-        stroke: obj.stroke || "#2C3338",
-        strokeWidth: screenSize2(obj.strokeWidth || WALL_THICKNESS),
-        fill: obj.fill || "",
-        draggable: appState.currentTool === "select" && editable
-      });
-      let widthLabel = null, heightLabel = null, heightText = null;
-      if (appState.dimensionsVisible) {
-        const widthInches = pixelsToInches(obj.width);
-        const heightInches = pixelsToInches(obj.height);
-        const fontSize = screenSize2(LABEL_FONT_SIZE);
-        const widthText = formatDimension(widthInches);
-        heightText = formatDimension(heightInches);
-        widthLabel = new Konva.Text({
-          x: obj.x + obj.width / 2,
-          y: obj.y + obj.height + screenSize2(8),
-          text: widthText,
-          fontSize,
-          fill: "#5C6367",
-          fontStyle: "bold",
-          offsetX: widthText.length * fontSize * 0.25,
-          listening: false,
-          name: "rect-label-" + obj.id
-        });
-        heightLabel = new Konva.Text({
-          x: obj.x + obj.width + screenSize2(15),
-          y: obj.y + obj.height / 2 + heightText.length * fontSize * 0.25,
-          text: heightText,
-          fontSize,
-          fill: "#5C6367",
-          fontStyle: "bold",
-          rotation: -90,
-          listening: false,
-          name: "rect-label-" + obj.id
-        });
-        contentLayer.add(widthLabel, heightLabel);
-      }
-      shape.on("dragmove", () => {
-        if (widthLabel && heightLabel) {
-          const fontSize = screenSize2(LABEL_FONT_SIZE);
-          widthLabel.x(shape.x() + shape.width() * shape.scaleX() / 2);
-          widthLabel.y(shape.y() + shape.height() * shape.scaleY() + screenSize2(8));
-          heightLabel.x(shape.x() + shape.width() * shape.scaleX() + screenSize2(15));
-          heightLabel.y(shape.y() + shape.height() * shape.scaleY() / 2 + heightText.length * fontSize * 0.25);
-        }
-      });
-      shape.on("dragend", () => {
-        const current = state.objects.find((o) => o.id === obj.id);
-        if (current) {
-          saveSnapshot();
-          current.x = shape.x();
-          current.y = shape.y();
-          if (appState.selectedId === obj.id && callbacks.onSelect) {
-            callbacks.onSelect(obj.id);
-          }
-        }
-      });
-      shape.on("mouseenter", () => {
-        const editable2 = isObjectEditable(obj);
-        if ((appState.currentTool === "eraser" || appState.currentTool === "select") && editable2) {
-          shape.opacity(appState.currentTool === "eraser" ? 0.5 : 0.8);
-          contentLayer.batchDraw();
-          document.body.style.cursor = "pointer";
-        }
-        appState.hoveredId = obj.id;
-      });
-      shape.on("mouseleave", () => {
-        shape.opacity(1);
-        contentLayer.batchDraw();
-        if (callbacks.getCursorForTool) document.body.style.cursor = callbacks.getCursorForTool(appState.currentTool);
-        appState.hoveredId = null;
-      });
-      shape.on("click tap", (e) => {
-        const editable2 = isObjectEditable(obj);
-        if (appState.currentTool === "eraser" && editable2) {
-          e.cancelBubble = true;
-          if (callbacks.onDelete) callbacks.onDelete(obj.id);
-        } else if (appState.currentTool === "select" && editable2) {
-          e.cancelBubble = true;
-          if (callbacks.onSelect) callbacks.onSelect(obj.id);
-        } else if (appState.currentTool === "wall") {
-          if (callbacks.onWallClick) callbacks.onWallClick();
-        } else if (appState.currentTool === "rectangle") {
-          if (callbacks.onRectClick) callbacks.onRectClick();
-        } else if (appState.currentTool === "text") {
-          if (callbacks.onTextClick) callbacks.onTextClick();
-        }
-      });
-    } else if (obj.type === "text" || obj.type === "label") {
-      const editable = isObjectEditable(obj);
-      shape = new Konva.Text({
-        id: obj.id,
-        x: obj.x,
-        y: obj.y,
-        text: obj.content,
-        fontSize: obj.fontSize || 14,
-        fill: obj.color || "#2C3338",
-        fontStyle: obj.fontStyle || "bold",
-        draggable: appState.currentTool === "select" && editable
-      });
-      shape.on("dragend", () => {
-        const current = state.objects.find((o) => o.id === obj.id);
-        if (current) {
-          saveSnapshot();
-          current.x = shape.x();
-          current.y = shape.y();
-          if (appState.selectedId === obj.id && callbacks.onSelect) {
-            callbacks.onSelect(obj.id);
-          }
-        }
-      });
-      shape.on("mouseenter", () => {
-        const editable2 = isObjectEditable(obj);
-        if ((appState.currentTool === "eraser" || appState.currentTool === "select") && editable2) {
-          shape.opacity(appState.currentTool === "eraser" ? 0.5 : 0.8);
-          contentLayer.batchDraw();
-          document.body.style.cursor = "pointer";
-        }
-        appState.hoveredId = obj.id;
-      });
-      shape.on("mouseleave", () => {
-        shape.opacity(1);
-        contentLayer.batchDraw();
-        if (callbacks.getCursorForTool) document.body.style.cursor = callbacks.getCursorForTool(appState.currentTool);
-        appState.hoveredId = null;
-      });
-      shape.on("click tap", (e) => {
-        const editable2 = isObjectEditable(obj);
-        if (appState.currentTool === "eraser" && editable2) {
-          e.cancelBubble = true;
-          if (callbacks.onDelete) callbacks.onDelete(obj.id);
-        } else if (appState.currentTool === "select" && editable2) {
-          e.cancelBubble = true;
-          if (callbacks.onSelect) callbacks.onSelect(obj.id);
-        } else if (appState.currentTool === "text" && editable2) {
-          e.cancelBubble = true;
-          if (callbacks.onTextEdit) callbacks.onTextEdit(obj.id);
-        } else if (appState.currentTool === "wall") {
-          if (callbacks.onWallClick) callbacks.onWallClick();
-        } else if (appState.currentTool === "rectangle") {
-          if (callbacks.onRectClick) callbacks.onRectClick();
-        }
-      });
-      shape.on("dblclick dbltap", (e) => {
-        const editable2 = isObjectEditable(obj);
-        if (appState.currentTool === "select" && editable2) {
-          e.cancelBubble = true;
-          if (callbacks.onTextEdit) callbacks.onTextEdit(obj.id);
-        }
-      });
+      group.add(dimLabel);
     }
-    if (shape) contentLayer.add(shape);
+    let dragStartX1, dragStartY1, dragStartX2, dragStartY2;
+    group.on("dragstart", () => {
+      dragStartX1 = obj.x1;
+      dragStartY1 = obj.y1;
+      dragStartX2 = obj.x2;
+      dragStartY2 = obj.y2;
+    });
+    group.on("dragend", () => {
+      saveSnapshot();
+      const dx = group.x();
+      const dy = group.y();
+      const snappedMove = snapPointToGrid(dx, dy);
+      obj.x1 = dragStartX1 + snappedMove.x;
+      obj.y1 = dragStartY1 + snappedMove.y;
+      obj.x2 = dragStartX2 + snappedMove.x;
+      obj.y2 = dragStartY2 + snappedMove.y;
+      group.position({ x: 0, y: 0 });
+      renderAllObjects();
+      if (appState.selectedId === obj.id && callbacks2.onSelect) {
+        callbacks2.onSelect(obj.id);
+      }
+    });
+    group.on("click tap", (e) => {
+      if (appState.currentTool === "eraser" && editable) {
+        e.cancelBubble = true;
+        if (callbacks2.onDelete) callbacks2.onDelete(obj.id);
+      } else if (appState.currentTool === "select" && editable) {
+        e.cancelBubble = true;
+        if (callbacks2.onSelect) callbacks2.onSelect(obj.id);
+      } else if (appState.currentTool === "wall") {
+        if (callbacks2.onWallClick) callbacks2.onWallClick();
+      }
+    });
+    group.on("mouseenter", () => {
+      if (appState.currentTool === "eraser" && editable) {
+        line.opacity(0.5);
+        line.stroke("#A65E44");
+        contentLayer.batchDraw();
+        document.body.style.cursor = "pointer";
+      } else if (appState.currentTool === "select" && editable) {
+        line.opacity(0.8);
+        contentLayer.batchDraw();
+        document.body.style.cursor = "move";
+      } else if (appState.currentTool === "wall") {
+        line.stroke("#F3C044");
+        line.strokeWidth(screenSize2(WALL_THICKNESS + 2));
+        contentLayer.batchDraw();
+        document.body.style.cursor = "crosshair";
+      }
+      appState.hoveredId = obj.id;
+    });
+    group.on("mouseleave", () => {
+      line.opacity(1);
+      line.stroke("#2C3338");
+      line.strokeWidth(screenSize2(WALL_THICKNESS));
+      contentLayer.batchDraw();
+      if (callbacks2.getCursorForTool) {
+        document.body.style.cursor = callbacks2.getCursorForTool(appState.currentTool);
+      }
+      appState.hoveredId = null;
+    });
+    contentLayer.add(group);
+  }
+  function renderRectangle(obj, editable, isSelectTool) {
+    const rect = new Konva.Rect({
+      id: obj.id,
+      x: obj.x,
+      y: obj.y,
+      width: obj.width,
+      height: obj.height,
+      stroke: obj.stroke || "#2C3338",
+      strokeWidth: screenSize2(obj.strokeWidth || WALL_THICKNESS),
+      fill: obj.fill || "",
+      draggable: isSelectTool && editable
+    });
+    let widthLabel = null, heightLabel = null;
+    if (appState.dimensionsVisible) {
+      const widthInches = pixelsToInches(obj.width);
+      const heightInches = pixelsToInches(obj.height);
+      const fontSize = screenSize2(LABEL_FONT_SIZE);
+      const widthText = formatDimension(widthInches);
+      const heightText = formatDimension(heightInches);
+      widthLabel = new Konva.Text({
+        x: obj.x + obj.width / 2,
+        y: obj.y + obj.height + screenSize2(8),
+        text: widthText,
+        fontSize,
+        fill: "#5C6367",
+        fontStyle: "bold",
+        offsetX: widthText.length * fontSize * 0.25,
+        listening: false
+      });
+      heightLabel = new Konva.Text({
+        x: obj.x + obj.width + screenSize2(15),
+        y: obj.y + obj.height / 2 + heightText.length * fontSize * 0.25,
+        text: heightText,
+        fontSize,
+        fill: "#5C6367",
+        fontStyle: "bold",
+        rotation: -90,
+        listening: false
+      });
+      contentLayer.add(widthLabel, heightLabel);
+    }
+    let startX, startY;
+    rect.on("dragstart", () => {
+      startX = rect.x();
+      startY = rect.y();
+    });
+    rect.on("dragmove", () => {
+      if (widthLabel && heightLabel) {
+        const fontSize = screenSize2(LABEL_FONT_SIZE);
+        const heightText = formatDimension(pixelsToInches(obj.height));
+        widthLabel.x(rect.x() + rect.width() / 2);
+        widthLabel.y(rect.y() + rect.height() + screenSize2(8));
+        heightLabel.x(rect.x() + rect.width() + screenSize2(15));
+        heightLabel.y(rect.y() + rect.height() / 2 + heightText.length * fontSize * 0.25);
+      }
+    });
+    rect.on("dragend", () => {
+      saveSnapshot();
+      const snapped = snapPointToGrid(rect.x(), rect.y());
+      obj.x = snapped.x;
+      obj.y = snapped.y;
+      renderAllObjects();
+      if (appState.selectedId === obj.id && callbacks2.onSelect) {
+        callbacks2.onSelect(obj.id);
+      }
+    });
+    rect.on("click tap", (e) => {
+      if (appState.currentTool === "eraser" && editable) {
+        e.cancelBubble = true;
+        if (callbacks2.onDelete) callbacks2.onDelete(obj.id);
+      } else if (appState.currentTool === "select" && editable) {
+        e.cancelBubble = true;
+        if (callbacks2.onSelect) callbacks2.onSelect(obj.id);
+      } else if (appState.currentTool === "wall") {
+        if (callbacks2.onWallClick) callbacks2.onWallClick();
+      } else if (appState.currentTool === "rectangle") {
+        if (callbacks2.onRectClick) callbacks2.onRectClick();
+      } else if (appState.currentTool === "text") {
+        if (callbacks2.onTextClick) callbacks2.onTextClick();
+      }
+    });
+    rect.on("mouseenter", () => {
+      if ((appState.currentTool === "eraser" || appState.currentTool === "select") && editable) {
+        rect.opacity(appState.currentTool === "eraser" ? 0.5 : 0.8);
+        contentLayer.batchDraw();
+        document.body.style.cursor = appState.currentTool === "eraser" ? "pointer" : "move";
+      }
+      appState.hoveredId = obj.id;
+    });
+    rect.on("mouseleave", () => {
+      rect.opacity(1);
+      contentLayer.batchDraw();
+      if (callbacks2.getCursorForTool) {
+        document.body.style.cursor = callbacks2.getCursorForTool(appState.currentTool);
+      }
+      appState.hoveredId = null;
+    });
+    contentLayer.add(rect);
+  }
+  function renderText(obj, editable, isSelectTool) {
+    const text = new Konva.Text({
+      id: obj.id,
+      x: obj.x,
+      y: obj.y,
+      text: obj.content,
+      fontSize: obj.fontSize || 14,
+      fill: obj.color || "#2C3338",
+      fontStyle: obj.fontStyle || "bold",
+      draggable: isSelectTool && editable
+    });
+    let startX, startY;
+    text.on("dragstart", () => {
+      startX = text.x();
+      startY = text.y();
+    });
+    text.on("dragend", () => {
+      saveSnapshot();
+      const snapped = snapPointToGrid(text.x(), text.y());
+      obj.x = snapped.x;
+      obj.y = snapped.y;
+      renderAllObjects();
+      if (appState.selectedId === obj.id && callbacks2.onSelect) {
+        callbacks2.onSelect(obj.id);
+      }
+    });
+    text.on("click tap", (e) => {
+      if (appState.currentTool === "eraser" && editable) {
+        e.cancelBubble = true;
+        if (callbacks2.onDelete) callbacks2.onDelete(obj.id);
+      } else if (appState.currentTool === "select" && editable) {
+        e.cancelBubble = true;
+        if (callbacks2.onSelect) callbacks2.onSelect(obj.id);
+      } else if (appState.currentTool === "text" && editable) {
+        e.cancelBubble = true;
+        if (callbacks2.onTextEdit) callbacks2.onTextEdit(obj.id);
+      } else if (appState.currentTool === "wall") {
+        if (callbacks2.onWallClick) callbacks2.onWallClick();
+      } else if (appState.currentTool === "rectangle") {
+        if (callbacks2.onRectClick) callbacks2.onRectClick();
+      }
+    });
+    text.on("dblclick dbltap", (e) => {
+      if (appState.currentTool === "select" && editable) {
+        e.cancelBubble = true;
+        if (callbacks2.onTextEdit) callbacks2.onTextEdit(obj.id);
+      }
+    });
+    text.on("mouseenter", () => {
+      if ((appState.currentTool === "eraser" || appState.currentTool === "select") && editable) {
+        text.opacity(appState.currentTool === "eraser" ? 0.5 : 0.8);
+        contentLayer.batchDraw();
+        document.body.style.cursor = appState.currentTool === "eraser" ? "pointer" : "move";
+      }
+      appState.hoveredId = obj.id;
+    });
+    text.on("mouseleave", () => {
+      text.opacity(1);
+      contentLayer.batchDraw();
+      if (callbacks2.getCursorForTool) {
+        document.body.style.cursor = callbacks2.getCursorForTool(appState.currentTool);
+      }
+      appState.hoveredId = null;
+    });
+    contentLayer.add(text);
   }
 
   // js/tools/wall-tool.js
   function screenSize3(pixels) {
     return pixels / stage.scaleX();
   }
-  var callbacks2 = {
+  var callbacks3 = {
     renderAllObjects: null,
     moveTextToTop: null
   };
   function setWallToolCallbacks(cb) {
-    callbacks2 = { ...callbacks2, ...cb };
+    callbacks3 = { ...callbacks3, ...cb };
   }
   var wallStart = null;
   var ghostLine = null;
@@ -1408,8 +1224,8 @@
           x2: snapped.x,
           y2: snapped.y
         });
-        if (callbacks2.renderAllObjects) callbacks2.renderAllObjects();
-        if (callbacks2.moveTextToTop) callbacks2.moveTextToTop();
+        if (callbacks3.renderAllObjects) callbacks3.renderAllObjects();
+        if (callbacks3.moveTextToTop) callbacks3.moveTextToTop();
       }
       wallStart = snapped;
       updateStatusBar("Wall added. Click to continue or switch tools");
@@ -1418,9 +1234,8 @@
   function handleWallMove(x, y) {
     clearWallGhost();
     if (!wallStart) {
-      const snapped2 = getSnappedPoint(x, y);
       const nearVertex = findNearestVertex(x, y);
-      if (nearVertex && distance(x, y, nearVertex.x, nearVertex.y) < SNAP_THRESHOLD) {
+      if (nearVertex) {
         showSnapIndicator(nearVertex.x, nearVertex.y, "start");
       }
       return;
@@ -1512,12 +1327,12 @@
   function screenSize4(pixels) {
     return pixels / stage.scaleX();
   }
-  var callbacks3 = {
+  var callbacks4 = {
     renderAllObjects: null,
     moveTextToTop: null
   };
   function setRectangleToolCallbacks(cb) {
-    callbacks3 = { ...callbacks3, ...cb };
+    callbacks4 = { ...callbacks4, ...cb };
   }
   var rectStart = null;
   var ghostRect = null;
@@ -1553,8 +1368,8 @@
           strokeWidth: WALL_THICKNESS,
           fill: appState.rectangleFilled ? appState.rectangleColor : ""
         });
-        if (callbacks3.renderAllObjects) callbacks3.renderAllObjects();
-        if (callbacks3.moveTextToTop) callbacks3.moveTextToTop();
+        if (callbacks4.renderAllObjects) callbacks4.renderAllObjects();
+        if (callbacks4.moveTextToTop) callbacks4.moveTextToTop();
         updateStatusBar("Rectangle added");
       }
       rectStart = null;
@@ -1634,12 +1449,12 @@
   }
 
   // js/tools/text-tool.js
-  var callbacks4 = {
+  var callbacks5 = {
     renderAllObjects: null,
     moveTextToTop: null
   };
   function setTextToolCallbacks(cb) {
-    callbacks4 = { ...callbacks4, ...cb };
+    callbacks5 = { ...callbacks5, ...cb };
   }
   function handleTextClick(x, y) {
     const activeLayer = getActiveLayer();
@@ -1662,8 +1477,8 @@
         color: "#2C3338",
         fontStyle: "bold"
       });
-      if (callbacks4.renderAllObjects) callbacks4.renderAllObjects();
-      if (callbacks4.moveTextToTop) callbacks4.moveTextToTop();
+      if (callbacks5.renderAllObjects) callbacks5.renderAllObjects();
+      if (callbacks5.moveTextToTop) callbacks5.moveTextToTop();
       updateStatusBar("Label added");
     }
   }
@@ -1685,13 +1500,13 @@
 
   // js/file-io.js
   var BACKGROUND_COLOR = "#F2F1EF";
-  var callbacks5 = {
+  var callbacks6 = {
     renderAllObjects: null,
     deselectObject: null,
     renderLayerPanel: null
   };
   function setFileIOCallbacks(cb) {
-    callbacks5 = { ...callbacks5, ...cb };
+    callbacks6 = { ...callbacks6, ...cb };
   }
   function newLayout() {
     if (state.objects.length > 0) {
@@ -1705,12 +1520,12 @@
     history.undoStack = [];
     history.redoStack = [];
     updateUndoRedoButtons();
-    if (callbacks5.deselectObject) callbacks5.deselectObject();
-    if (callbacks5.renderLayerPanel) callbacks5.renderLayerPanel();
-    if (callbacks5.renderAllObjects) callbacks5.renderAllObjects();
+    if (callbacks6.deselectObject) callbacks6.deselectObject();
+    if (callbacks6.renderLayerPanel) callbacks6.renderLayerPanel();
+    if (callbacks6.renderAllObjects) callbacks6.renderAllObjects();
     updateStatusBar("New layout created");
   }
-  function saveLayout() {
+  async function saveLayout() {
     const data = {
       version: state.version,
       scale: SCALE,
@@ -1720,6 +1535,27 @@
       objects: state.objects
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    if ("showSaveFilePicker" in window) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: "floor-plan.layout",
+          types: [{
+            description: "Layout File",
+            accept: { "application/json": [".layout"] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        updateStatusBar("Saved: " + handle.name);
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") {
+          updateStatusBar("Save cancelled");
+          return;
+        }
+      }
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1758,9 +1594,9 @@
             history.undoStack = [];
             history.redoStack = [];
             updateUndoRedoButtons();
-            if (callbacks5.deselectObject) callbacks5.deselectObject();
-            if (callbacks5.renderLayerPanel) callbacks5.renderLayerPanel();
-            if (callbacks5.renderAllObjects) callbacks5.renderAllObjects();
+            if (callbacks6.deselectObject) callbacks6.deselectObject();
+            if (callbacks6.renderLayerPanel) callbacks6.renderLayerPanel();
+            if (callbacks6.renderAllObjects) callbacks6.renderAllObjects();
             updateStatusBar(`Loaded: ${file.name}`);
           } else {
             throw new Error("Invalid layout file");
@@ -1833,7 +1669,7 @@
   }
 
   // js/keyboard.js
-  var callbacks6 = {
+  var callbacks7 = {
     deleteSelectedObject: null,
     switchTool: null,
     newLayout: null,
@@ -1844,7 +1680,7 @@
     pasteSelection: null
   };
   function setKeyboardCallbacks(cb) {
-    callbacks6 = { ...callbacks6, ...cb };
+    callbacks7 = { ...callbacks7, ...cb };
   }
   function handleKeyDown(e) {
     appState.shiftPressed = e.shiftKey;
@@ -1864,63 +1700,63 @@
     }
     if (modKey && e.key === "n") {
       e.preventDefault();
-      if (callbacks6.newLayout) callbacks6.newLayout();
+      if (callbacks7.newLayout) callbacks7.newLayout();
       return;
     }
     if (modKey && e.key === "s") {
       e.preventDefault();
-      if (callbacks6.saveLayout) callbacks6.saveLayout();
+      if (callbacks7.saveLayout) callbacks7.saveLayout();
       return;
     }
     if (modKey && e.key === "o") {
       e.preventDefault();
-      if (callbacks6.loadLayout) callbacks6.loadLayout();
+      if (callbacks7.loadLayout) callbacks7.loadLayout();
       return;
     }
     if (modKey && e.shiftKey && e.key === "e") {
       e.preventDefault();
-      if (callbacks6.exportPNG) callbacks6.exportPNG();
+      if (callbacks7.exportPNG) callbacks7.exportPNG();
       return;
     }
     if (modKey && e.key === "c") {
       e.preventDefault();
-      if (callbacks6.copySelection) callbacks6.copySelection();
+      if (callbacks7.copySelection) callbacks7.copySelection();
       return;
     }
     if (modKey && e.key === "v") {
       e.preventDefault();
-      if (callbacks6.pasteSelection) callbacks6.pasteSelection();
+      if (callbacks7.pasteSelection) callbacks7.pasteSelection();
       return;
     }
     if (e.key === "Delete" || e.key === "Backspace") {
-      if ((appState.selectedId || appState.selectedIds.length > 0) && callbacks6.deleteSelectedObject) {
+      if ((appState.selectedId || appState.selectedIds.length > 0) && callbacks7.deleteSelectedObject) {
         e.preventDefault();
-        callbacks6.deleteSelectedObject();
+        callbacks7.deleteSelectedObject();
       }
       return;
     }
     if (e.key === "Escape") {
-      if (callbacks6.switchTool) callbacks6.switchTool("select");
+      if (callbacks7.switchTool) callbacks7.switchTool("select");
       return;
     }
     if (!modKey) {
       switch (e.key.toLowerCase()) {
         case "v":
         case "s":
-          if (callbacks6.switchTool) callbacks6.switchTool("select");
+          if (callbacks7.switchTool) callbacks7.switchTool("select");
           break;
         case "w":
-          if (callbacks6.switchTool) callbacks6.switchTool("wall");
+          if (callbacks7.switchTool) callbacks7.switchTool("wall");
           break;
         case "r":
-          if (callbacks6.switchTool) callbacks6.switchTool("rectangle");
+          if (callbacks7.switchTool) callbacks7.switchTool("rectangle");
           break;
         case "t":
-          if (callbacks6.switchTool) callbacks6.switchTool("text");
+          if (callbacks7.switchTool) callbacks7.switchTool("text");
           break;
         case "e":
         case "x":
-          if (callbacks6.switchTool) callbacks6.switchTool("eraser");
+          if (callbacks7.switchTool) callbacks7.switchTool("eraser");
           break;
       }
     }
@@ -1949,7 +1785,7 @@
     text: "Text tool | Click to add label",
     eraser: "Eraser | Click or drag to delete"
   })[tool] || "";
-  var showRectanglePanel2 = (show) => {
+  var showRectanglePanel = (show) => {
     document.getElementById("rectangle-panel").classList.toggle("hidden", !show);
   };
   function initializeColorPalette() {
@@ -2012,12 +1848,12 @@
   }
 
   // js/layer-panel.js
-  var callbacks7 = {
+  var callbacks8 = {
     renderAllObjects: null,
     deselectObject: null
   };
   function setLayerPanelCallbacks(cb) {
-    callbacks7 = { ...callbacks7, ...cb };
+    callbacks8 = { ...callbacks8, ...cb };
   }
   var contextMenuLayerId = null;
   function renderLayerPanel() {
@@ -2063,7 +1899,7 @@
       row.onclick = () => selectLayer(layer.id);
       list.appendChild(row);
     });
-    updateMoveToLayerButton2();
+    updateMoveToLayerButton();
   }
   function selectLayer(id) {
     const layer = getLayerById(id);
@@ -2081,7 +1917,7 @@
       deselectObjectsOnLayer(id);
     }
     renderLayerPanel();
-    if (callbacks7.renderAllObjects) callbacks7.renderAllObjects();
+    if (callbacks8.renderAllObjects) callbacks8.renderAllObjects();
     updateStatusBar(`${layer.name}: ${layer.visible ? "visible" : "hidden"}`);
   }
   function toggleLayerLock(id) {
@@ -2093,14 +1929,14 @@
       deselectObjectsOnLayer(id);
     }
     renderLayerPanel();
-    if (callbacks7.renderAllObjects) callbacks7.renderAllObjects();
+    if (callbacks8.renderAllObjects) callbacks8.renderAllObjects();
     updateStatusBar(`${layer.name}: ${layer.locked ? "locked" : "unlocked"}`);
   }
   function deselectObjectsOnLayer(layerId) {
     if (appState.selectedId) {
       const obj = state.objects.find((o) => o.id === appState.selectedId);
       if (obj && (obj.layerId || DEFAULT_LAYER_ID) === layerId) {
-        if (callbacks7.deselectObject) callbacks7.deselectObject();
+        if (callbacks8.deselectObject) callbacks8.deselectObject();
       }
     }
     if (appState.selectedIds.length > 0) {
@@ -2110,7 +1946,7 @@
       });
       if (remaining.length !== appState.selectedIds.length) {
         appState.selectedIds = remaining;
-        if (callbacks7.renderAllObjects) callbacks7.renderAllObjects();
+        if (callbacks8.renderAllObjects) callbacks8.renderAllObjects();
       }
     }
   }
@@ -2150,7 +1986,7 @@
       appState.activeLayerId = state.layers[0].id;
     }
     renderLayerPanel();
-    if (callbacks7.renderAllObjects) callbacks7.renderAllObjects();
+    if (callbacks8.renderAllObjects) callbacks8.renderAllObjects();
     updateStatusBar(`Deleted ${layer.name}, objects moved to ${targetLayer.name}`);
   }
   function renameLayer(id) {
@@ -2176,7 +2012,7 @@
     layer.order = swapWith.order;
     swapWith.order = tempOrder;
     renderLayerPanel();
-    if (callbacks7.renderAllObjects) callbacks7.renderAllObjects();
+    if (callbacks8.renderAllObjects) callbacks8.renderAllObjects();
   }
   function moveLayerDown(id) {
     const layer = getLayerById(id);
@@ -2190,7 +2026,7 @@
     layer.order = swapWith.order;
     swapWith.order = tempOrder;
     renderLayerPanel();
-    if (callbacks7.renderAllObjects) callbacks7.renderAllObjects();
+    if (callbacks8.renderAllObjects) callbacks8.renderAllObjects();
   }
   function moveSelectedToActiveLayer() {
     const activeLayer = getActiveLayer();
@@ -2214,7 +2050,7 @@
       }
     });
     if (movedCount > 0) {
-      if (callbacks7.renderAllObjects) callbacks7.renderAllObjects();
+      if (callbacks8.renderAllObjects) callbacks8.renderAllObjects();
       updateStatusBar(`Moved ${movedCount} object(s) to ${activeLayer.name}`);
     } else {
       updateStatusBar("Objects already on active layer");
@@ -2256,7 +2092,7 @@
         break;
     }
   }
-  function updateMoveToLayerButton2() {
+  function updateMoveToLayerButton() {
     const btn = document.getElementById("move-to-layer-btn");
     const hasSelection = appState.selectedId || appState.selectedIds.length > 0;
     btn.disabled = !hasSelection;
@@ -2265,7 +2101,7 @@
   // js/app.js
   initializeKonva();
   setHistoryCallbacks({
-    renderAllObjects: renderAllObjects2
+    renderAllObjects
   });
   setRenderingCallbacks({
     onDelete: deleteObjectById,
@@ -2288,25 +2124,25 @@
     updateStatusBar
   });
   setSelectionCallbacks({
-    renderAllObjects: renderAllObjects2,
-    showRectanglePanel: showRectanglePanel2,
-    updateRectanglePanelFromSelection: updateRectanglePanelFromSelection2,
-    updateMoveToLayerButton: updateMoveToLayerButton2
+    renderAllObjects,
+    showRectanglePanel,
+    updateRectanglePanelFromSelection,
+    updateMoveToLayerButton
   });
   setWallToolCallbacks({
-    renderAllObjects: renderAllObjects2,
+    renderAllObjects,
     moveTextToTop
   });
   setRectangleToolCallbacks({
-    renderAllObjects: renderAllObjects2,
+    renderAllObjects,
     moveTextToTop
   });
   setTextToolCallbacks({
-    renderAllObjects: renderAllObjects2,
+    renderAllObjects,
     moveTextToTop
   });
   setFileIOCallbacks({
-    renderAllObjects: renderAllObjects2,
+    renderAllObjects,
     deselectObject,
     renderLayerPanel
   });
@@ -2321,15 +2157,15 @@
     pasteSelection
   });
   setLayerCallbacks({
-    renderAllObjects: renderAllObjects2,
+    renderAllObjects,
     saveSnapshot
   });
   setLayerPanelCallbacks({
-    renderAllObjects: renderAllObjects2,
+    renderAllObjects,
     deselectObject
   });
   setGridCallbacks({
-    renderAllObjects: renderAllObjects2
+    renderAllObjects
   });
   function switchTool(tool) {
     appState.currentTool = tool;
@@ -2347,20 +2183,23 @@
       btn.classList.toggle("text-slate-700", !isActive);
       btn.classList.toggle("border-cream-300", !isActive);
     });
-    contentLayer.find("Text, Rect").forEach((shape) => shape.draggable(tool === "select"));
-    contentLayer.find("Group").forEach((shape) => {
-      if (shape.name() !== "wall-group") shape.draggable(tool === "select");
+    contentLayer.find("Text, Rect, Group").forEach((shape) => {
+      shape.draggable(tool === "select");
     });
-    showRectanglePanel2(tool === "rectangle");
+    showRectanglePanel(tool === "rectangle");
     document.body.style.cursor = getCursorForTool(tool);
     updateStatusBar(getStatusForTool(tool));
   }
-  function updateRectanglePanelFromSelection2(obj) {
+  function updateRectanglePanelFromSelection(obj) {
     if (obj.type !== "rectangle") return;
     appState.rectangleColor = obj.stroke || "#2C3338";
     appState.rectangleFilled = !!obj.fill;
     document.getElementById("rect-fill").checked = appState.rectangleFilled;
     updateColorSelection(appState.rectangleColor);
+    const widthInput = document.getElementById("rect-width-input");
+    const heightInput = document.getElementById("rect-height-input");
+    if (widthInput) widthInput.value = formatDimension(pixelsToInches(obj.width));
+    if (heightInput) heightInput.value = formatDimension(pixelsToInches(obj.height));
   }
   stage.on("wheel", handleZoom);
   stage.on("click tap", (e) => {
@@ -2386,7 +2225,7 @@
       });
       stage.batchDraw();
       drawGrid();
-      renderAllObjects2();
+      renderAllObjects();
       appState.lastPanPoint = screenPos;
       return;
     }
@@ -2397,7 +2236,7 @@
       const idx = state.objects.findIndex((o) => o.id === appState.hoveredId);
       if (idx !== -1) {
         state.objects.splice(idx, 1);
-        renderAllObjects2();
+        renderAllObjects();
       }
     }
     if (appState.currentTool === "wall") handleWallMove(pos.x, pos.y);
@@ -2459,7 +2298,7 @@
   });
   document.getElementById("dimensions-toggle").addEventListener("click", () => {
     appState.dimensionsVisible = !appState.dimensionsVisible;
-    renderAllObjects2();
+    renderAllObjects();
     updateStatusBar(`Dimensions ${appState.dimensionsVisible ? "shown" : "hidden"}`);
   });
   document.getElementById("reset-view").addEventListener("click", resetView);
@@ -2514,7 +2353,7 @@
         updateUndoRedoButtons();
         deselectObject();
         renderLayerPanel();
-        renderAllObjects2();
+        renderAllObjects();
         updateStatusBar(`Loaded: ${file.name}`);
       } catch (err) {
         alert("Error loading file: " + err.message);
@@ -2550,8 +2389,34 @@
         obj.x2 = obj.x1 + Math.cos(angle) * px;
         obj.y2 = obj.y1 + Math.sin(angle) * px;
       }
-      renderAllObjects2();
+      renderAllObjects();
       updateStatusBar("Dimensions updated");
+    }
+  });
+  document.getElementById("rect-width-input").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      const inches = parseDimension(e.target.value);
+      if (!appState.selectedId || inches <= 0) return;
+      const obj = state.objects.find((o) => o.id === appState.selectedId);
+      if (!obj || obj.type !== "rectangle") return;
+      saveSnapshot();
+      obj.width = inchesToPixels(inches);
+      renderAllObjects();
+      selectObject(obj.id);
+      updateStatusBar("Width updated");
+    }
+  });
+  document.getElementById("rect-height-input").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      const inches = parseDimension(e.target.value);
+      if (!appState.selectedId || inches <= 0) return;
+      const obj = state.objects.find((o) => o.id === appState.selectedId);
+      if (!obj || obj.type !== "rectangle") return;
+      saveSnapshot();
+      obj.height = inchesToPixels(inches);
+      renderAllObjects();
+      selectObject(obj.id);
+      updateStatusBar("Height updated");
     }
   });
   document.addEventListener("keydown", (e) => {

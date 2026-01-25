@@ -5,7 +5,7 @@ import { appState, state, history, DEFAULT_LAYER_ID } from './state.js';
 import { initializeKonva, stage, gridLayer, contentLayer, uiLayer, getCanvasPointerPosition } from './konva-setup.js';
 import { updateStatusBar, isMac, isModKey, pixelsToInches, inchesToPixels, parseDimension, formatDimension } from './utils.js';
 import { drawGrid, handleZoom, resetView, handleResize, setGridCallbacks } from './grid.js';
-import { getSnappedPoint, getAxisLock, findSmartGuides, findNearestVertex, findWallAtPoint, snapToGrid } from './snapping.js';
+import { getSnappedPoint, getAxisLock, findNearestVertex, snapToGrid, snapPointToGrid } from './snapping.js';
 import { saveSnapshot, undo, redo, updateUndoRedoButtons, setHistoryCallbacks } from './history.js';
 import { renderAllObjects, renderObject, moveTextToTop, setRenderingCallbacks } from './rendering.js';
 import {
@@ -126,10 +126,9 @@ function switchTool(tool) {
     btn.classList.toggle('border-cream-300', !isActive);
   });
 
-  // Make shapes draggable in select mode, but NOT wall groups (walls use handles only)
-  contentLayer.find('Text, Rect').forEach(shape => shape.draggable(tool === 'select'));
-  contentLayer.find('Group').forEach(shape => {
-    if (shape.name() !== 'wall-group') shape.draggable(tool === 'select');
+  // Make all shapes draggable in select mode (walls, rects, text)
+  contentLayer.find('Text, Rect, Group').forEach(shape => {
+    shape.draggable(tool === 'select');
   });
   showRectanglePanel(tool === 'rectangle');
   document.body.style.cursor = getCursorForTool(tool);
@@ -144,6 +143,12 @@ function updateRectanglePanelFromSelection(obj) {
   appState.rectangleFilled = !!obj.fill;
   document.getElementById('rect-fill').checked = appState.rectangleFilled;
   updateColorSelection(appState.rectangleColor);
+
+  // Update dimension inputs
+  const widthInput = document.getElementById('rect-width-input');
+  const heightInput = document.getElementById('rect-height-input');
+  if (widthInput) widthInput.value = formatDimension(pixelsToInches(obj.width));
+  if (heightInput) heightInput.value = formatDimension(pixelsToInches(obj.height));
 }
 
 function updateDimensionInput(obj) {
@@ -393,6 +398,39 @@ document.getElementById('dimension-input').addEventListener('keypress', e => {
     }
     renderAllObjects();
     updateStatusBar('Dimensions updated');
+  }
+});
+
+// Rectangle dimension inputs
+document.getElementById('rect-width-input').addEventListener('keypress', e => {
+  if (e.key === 'Enter') {
+    const inches = parseDimension(e.target.value);
+    if (!appState.selectedId || inches <= 0) return;
+
+    const obj = state.objects.find(o => o.id === appState.selectedId);
+    if (!obj || obj.type !== 'rectangle') return;
+
+    saveSnapshot();
+    obj.width = inchesToPixels(inches);
+    renderAllObjects();
+    selectObject(obj.id);
+    updateStatusBar('Width updated');
+  }
+});
+
+document.getElementById('rect-height-input').addEventListener('keypress', e => {
+  if (e.key === 'Enter') {
+    const inches = parseDimension(e.target.value);
+    if (!appState.selectedId || inches <= 0) return;
+
+    const obj = state.objects.find(o => o.id === appState.selectedId);
+    if (!obj || obj.type !== 'rectangle') return;
+
+    saveSnapshot();
+    obj.height = inchesToPixels(inches);
+    renderAllObjects();
+    selectObject(obj.id);
+    updateStatusBar('Height updated');
   }
 });
 
