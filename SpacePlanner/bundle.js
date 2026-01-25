@@ -1567,7 +1567,8 @@
   var callbacks6 = {
     renderAllObjects: null,
     deselectObject: null,
-    renderLayerPanel: null
+    renderLayerPanel: null,
+    drawGrid: null
   };
   function setFileIOCallbacks(cb) {
     callbacks6 = { ...callbacks6, ...cb };
@@ -1597,6 +1598,11 @@
       created: (/* @__PURE__ */ new Date()).toISOString(),
       layers: state.layers,
       activeLayerId: appState.activeLayerId,
+      view: {
+        x: stage.x(),
+        y: stage.y(),
+        zoom: stage.scaleX()
+      },
       objects: state.objects
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -1660,10 +1666,16 @@
                 if (!obj.layerId) obj.layerId = DEFAULT_LAYER_ID;
               });
             }
+            if (data.view) {
+              stage.position({ x: data.view.x || 0, y: data.view.y || 0 });
+              const zoom = data.view.zoom || 1;
+              stage.scale({ x: zoom, y: zoom });
+            }
             history.undoStack = [];
             history.redoStack = [];
             updateUndoRedoButtons();
             if (callbacks6.deselectObject) callbacks6.deselectObject();
+            if (callbacks6.drawGrid) callbacks6.drawGrid();
             if (callbacks6.renderLayerPanel) callbacks6.renderLayerPanel();
             if (callbacks6.renderAllObjects) callbacks6.renderAllObjects();
             updateStatusBar(`Loaded: ${file.name}`);
@@ -2213,7 +2225,8 @@
   setFileIOCallbacks({
     renderAllObjects,
     deselectObject,
-    renderLayerPanel
+    renderLayerPanel,
+    drawGrid
   });
   setKeyboardCallbacks({
     deleteSelectedObject,

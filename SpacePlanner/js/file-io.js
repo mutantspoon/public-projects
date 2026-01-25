@@ -12,7 +12,8 @@ const BACKGROUND_COLOR = '#F2F1EF';
 let callbacks = {
   renderAllObjects: null,
   deselectObject: null,
-  renderLayerPanel: null
+  renderLayerPanel: null,
+  drawGrid: null
 };
 
 export function setFileIOCallbacks(cb) {
@@ -47,6 +48,11 @@ export async function saveLayout() {
     created: new Date().toISOString(),
     layers: state.layers,
     activeLayerId: appState.activeLayerId,
+    view: {
+      x: stage.x(),
+      y: stage.y(),
+      zoom: stage.scaleX()
+    },
     objects: state.objects
   };
 
@@ -124,11 +130,19 @@ export function loadLayout() {
             });
           }
 
+          // Restore view position and zoom if saved
+          if (data.view) {
+            stage.position({ x: data.view.x || 0, y: data.view.y || 0 });
+            const zoom = data.view.zoom || 1;
+            stage.scale({ x: zoom, y: zoom });
+          }
+
           history.undoStack = [];
           history.redoStack = [];
           updateUndoRedoButtons();
 
           if (callbacks.deselectObject) callbacks.deselectObject();
+          if (callbacks.drawGrid) callbacks.drawGrid();
           if (callbacks.renderLayerPanel) callbacks.renderLayerPanel();
           if (callbacks.renderAllObjects) callbacks.renderAllObjects();
           updateStatusBar(`Loaded: ${file.name}`);

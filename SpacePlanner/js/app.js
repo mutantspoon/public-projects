@@ -79,7 +79,8 @@ setTextToolCallbacks({
 setFileIOCallbacks({
   renderAllObjects,
   deselectObject,
-  renderLayerPanel
+  renderLayerPanel,
+  drawGrid
 });
 
 setKeyboardCallbacks({
