@@ -46,3 +46,4 @@ tools/quick-launcher/settings.json
 
 # Claude Code local settings
 .claude/
+*.exr
