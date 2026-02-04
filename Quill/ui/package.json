@@ -1,0 +1,26 @@
+{
+  "name": "quill-ui",
+  "version": "1.0.0",
+  "description": "Quill markdown editor UI",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild js/app.js --bundle --outfile=js/bundle.js --format=iife --target=es2020",
+    "watch": "esbuild js/app.js --bundle --outfile=js/bundle.js --format=iife --target=es2020 --watch"
+  },
+  "dependencies": {
+    "@milkdown/core": "^7.6.0",
+    "@milkdown/ctx": "^7.6.0",
+    "@milkdown/preset-commonmark": "^7.6.0",
+    "@milkdown/preset-gfm": "^7.6.0",
+    "@milkdown/plugin-listener": "^7.6.0",
+    "@milkdown/plugin-history": "^7.6.0",
+    "@milkdown/plugin-prism": "^7.6.0",
+    "@milkdown/utils": "^7.6.0",
+    "@milkdown/prose": "^7.6.0",
+    "prismjs": "^1.29.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

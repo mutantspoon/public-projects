@@ -1,0 +1,59 @@
+/* Theme CSS Variables */
+
+:root, [data-theme='light'] {
+    --name: Light;
+    --background: #FFFFFF;
+    --text: #1A1A1A;
+    --accent: #2563EB;
+    --accent-subtle: rgba(37, 99, 235, 0.1);
+    --toolbar: #F8F8F8;
+    --border: #E5E5E5;
+    --selection: #ADD6FF;
+    --code-bg: #F6F8FA;
+    --heading: #24292E;
+    --link: #0366D6;
+    --blockquote: #6A737D;
+    --blockquote-border: #DFE2E5;
+    /* Syntax highlighting (light theme) */
+    --code-comment: #008000;
+    --code-punctuation: #393A34;
+    --code-number: #36acaa;
+    --code-string: #a31515;
+    --code-operator: #393A34;
+    --code-function: #795E26;
+    --code-keyword: #0000ff;
+    --code-regex: #811f3f;
+    /* Toast colors */
+    --toast-bg: #323232;
+    --toast-success: #4caf50;
+    --toast-error: #f44336;
+}
+
+[data-theme='dark'] {
+    --name: Dark;
+    --background: #1A1A1A;
+    --text: #D4D4D4;
+    --accent: #60A5FA;
+    --accent-subtle: rgba(96, 165, 250, 0.15);
+    --toolbar: #252526;
+    --border: #3C3C3C;
+    --selection: #264F78;
+    --code-bg: #2D2D2D;
+    --heading: #E1E4E8;
+    --link: #58A6FF;
+    --blockquote: #8B949E;
+    --blockquote-border: #3B434B;
+    /* Syntax highlighting (dark theme - VS Code inspired) */
+    --code-comment: #6a9955;
+    --code-punctuation: #d4d4d4;
+    --code-number: #b5cea8;
+    --code-string: #ce9178;
+    --code-operator: #d4d4d4;
+    --code-function: #dcdcaa;
+    --code-keyword: #569cd6;
+    --code-regex: #d16969;
+    /* Toast colors */
+    --toast-bg: #323232;
+    --toast-success: #4caf50;
+    --toast-error: #f44336;
+}

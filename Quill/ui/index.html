@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quill</title>
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body data-theme="dark">
+    <!-- Toolbar Row 1: File + Text Formatting -->
+    <div class="toolbar" id="toolbar-row1">
+        <div class="toolbar-group">
+            <button class="toolbar-btn" id="btn-new" data-tooltip="New" data-shortcut="N">New</button>
+            <button class="toolbar-btn" id="btn-open" data-tooltip="Open" data-shortcut="O">Open</button>
+            <div class="dropdown" id="recent-dropdown">
+                <button class="toolbar-btn dropdown-toggle" id="btn-recent" title="Recent Files">▾</button>
+                <div class="dropdown-menu" id="recent-menu"></div>
+            </div>
+            <button class="toolbar-btn" id="btn-save" data-tooltip="Save" data-shortcut="S">Save</button>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group">
+            <button class="toolbar-btn format-btn" id="btn-bold" data-tooltip="Bold" data-shortcut="B"><strong>B</strong></button>
+            <button class="toolbar-btn format-btn" id="btn-italic" data-tooltip="Italic" data-shortcut="I"><em>I</em></button>
+            <button class="toolbar-btn format-btn" id="btn-strike" data-tooltip="Strikethrough" data-shortcut="shift+X"><s>S</s></button>
+            <button class="toolbar-btn format-btn" id="btn-code" title="Inline Code"><code>&lt;&gt;</code></button>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group">
+            <button class="toolbar-btn" id="btn-link" data-tooltip="Insert Link" data-shortcut="K">Link</button>
+            <button class="toolbar-btn" id="btn-image" title="Insert Image">Img</button>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group">
+            <button class="toolbar-btn" id="btn-h1" data-tooltip="Heading 1" data-shortcut="1">H1</button>
+            <button class="toolbar-btn" id="btn-h2" data-tooltip="Heading 2" data-shortcut="2">H2</button>
+            <button class="toolbar-btn" id="btn-h3" data-tooltip="Heading 3" data-shortcut="3">H3</button>
+        </div>
+        <div class="toolbar-spacer"></div>
+    </div>
+
+    <!-- Toolbar Row 2: Blocks + View Options -->
+    <div class="toolbar toolbar-row2" id="toolbar-row2">
+        <div class="toolbar-group">
+            <button class="toolbar-btn" id="btn-bullet" title="Bullet List">List</button>
+            <button class="toolbar-btn" id="btn-numlist" title="Numbered List">Num</button>
+            <button class="toolbar-btn" id="btn-task" title="Task List">Task</button>
+            <button class="toolbar-btn" id="btn-quote" title="Blockquote">Quote</button>
+            <button class="toolbar-btn" id="btn-codeblock" title="Code Block">Code</button>
+            <button class="toolbar-btn" id="btn-table" title="Insert Table">Table</button>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group">
+            <button class="toolbar-btn" id="btn-outline" title="Document Outline">Outline</button>
+            <button class="toolbar-btn" id="btn-source" data-tooltip="Toggle Source" data-shortcut="/">Source</button>
+        </div>
+        <div class="toolbar-spacer"></div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="tab-bar" id="tab-bar">
+        <div class="tabs-container"></div>
+    </div>
+
+    <!-- Find Bar -->
+    <div class="find-bar hidden" id="find-bar">
+        <div class="find-row">
+            <button class="find-toggle" id="toggle-replace" title="Toggle Replace">▶</button>
+            <input type="text" class="find-input" id="find-input" placeholder="Find...">
+            <label class="find-option" title="Case Sensitive (Alt+C)">
+                <input type="checkbox" id="find-case-sensitive">
+                <span>Aa</span>
+            </label>
+            <span class="find-count" id="find-count"></span>
+            <button class="find-btn" id="find-prev" title="Previous Match (Shift+Enter)">↑</button>
+            <button class="find-btn" id="find-next" title="Next Match (Enter)">↓</button>
+            <button class="find-btn find-close" id="find-close" title="Close (Esc)">×</button>
+        </div>
+        <div class="replace-row hidden" id="replace-row">
+            <input type="text" class="find-input" id="replace-input" placeholder="Replace with...">
+            <button class="find-btn" id="replace-btn" title="Replace">Replace</button>
+            <button class="find-btn" id="replace-all-btn" title="Replace All">All</button>
+        </div>
+    </div>
+
+    <!-- Editor Container -->
+    <div class="editor-container" id="editor-container">
+        <div id="editor"></div>
+        <textarea id="source-editor" class="source-editor hidden" spellcheck="false"></textarea>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar" id="statusbar">
+        <span class="status-item" id="status-position">Ln 1, Col 1</span>
+        <span class="status-separator">|</span>
+        <span class="status-item" id="status-encoding">UTF-8</span>
+        <span class="status-separator">|</span>
+        <span class="status-item" id="status-words">Words: 0</span>
+        <span class="status-separator">|</span>
+        <span class="status-item" id="status-reading-time">~0 min read</span>
+        <span class="status-separator" id="status-mode-sep" style="display: none;">|</span>
+        <span class="status-item status-mode" id="status-mode" style="display: none;">Source</span>
+        <span class="status-spacer"></span>
+        <span class="status-item" id="status-message"></span>
+        <div class="status-controls">
+            <button class="status-btn" id="btn-zoom-out" title="Zoom Out (Cmd+-)">−</button>
+            <span class="status-item" id="font-size-label">14px</span>
+            <button class="status-btn" id="btn-zoom-in" title="Zoom In (Cmd++)">+</button>
+            <span class="status-separator">|</span>
+            <button class="status-btn" id="btn-theme" title="Toggle Theme">☀</button>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Modal Dialog -->
+    <div class="modal-overlay hidden" id="modal-overlay">
+        <div class="modal-dialog" id="modal-dialog">
+            <div class="modal-message" id="modal-message"></div>
+            <div class="modal-buttons" id="modal-buttons"></div>
+        </div>
+    </div>
+
+    <!-- Load bundled JavaScript -->
+    <script src="js/bundle.js"></script>
+</body>
+</html>
