@@ -5,6 +5,9 @@
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __getProtoOf = Object.getPrototypeOf;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __typeError = (msg) => {
+    throw TypeError(msg);
+  };
   var __commonJS = (cb, mod) => function __require() {
     return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
   };
@@ -28,6 +31,10 @@
     isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
     mod
   ));
+  var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
+  var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+  var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
+  var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 
   // node_modules/extend/index.js
   var require_extend = __commonJS({
@@ -293,36 +300,37 @@
       };
     }
   };
+  var _watchers, _value, _emit;
   var Slice = class {
     /// @internal
     constructor(container, value, type) {
-      this.#watchers = [];
-      this.#emit = () => {
-        this.#watchers.forEach((watcher) => watcher(this.#value));
-      };
+      __privateAdd(this, _watchers);
+      /// @internal
+      __privateAdd(this, _value);
+      __privateAdd(this, _emit);
+      __privateSet(this, _watchers, []);
+      __privateSet(this, _emit, () => {
+        __privateGet(this, _watchers).forEach((watcher) => watcher(__privateGet(this, _value)));
+      });
       this.set = (value2) => {
-        this.#value = value2;
-        this.#emit();
+        __privateSet(this, _value, value2);
+        __privateGet(this, _emit).call(this);
       };
-      this.get = () => this.#value;
+      this.get = () => __privateGet(this, _value);
       this.update = (updater) => {
-        this.#value = updater(this.#value);
-        this.#emit();
+        __privateSet(this, _value, updater(__privateGet(this, _value)));
+        __privateGet(this, _emit).call(this);
       };
       this.type = type;
-      this.#value = value;
+      __privateSet(this, _value, value);
       container.set(type.id, this);
     }
-    #watchers;
-    /// @internal
-    #value;
-    #emit;
     /// Add a watcher for changes in the slice.
     /// Returns a function to remove the watcher.
     on(watcher) {
-      this.#watchers.push(watcher);
+      __privateGet(this, _watchers).push(watcher);
       return () => {
-        this.#watchers = this.#watchers.filter((w) => w !== watcher);
+        __privateSet(this, _watchers, __privateGet(this, _watchers).filter((w) => w !== watcher));
       };
     }
     /// Add a one-time watcher for changes in the slice.
@@ -337,13 +345,16 @@
     }
     /// Remove a watcher.
     off(watcher) {
-      this.#watchers = this.#watchers.filter((w) => w !== watcher);
+      __privateSet(this, _watchers, __privateGet(this, _watchers).filter((w) => w !== watcher));
     }
     /// Remove all watchers.
     offAll() {
-      this.#watchers = [];
+      __privateSet(this, _watchers, []);
     }
   };
+  _watchers = new WeakMap();
+  _value = new WeakMap();
+  _emit = new WeakMap();
   var SliceType = class {
     /// Create a slice type with a default value and a name.
     /// The name should be unique in the container.
@@ -362,160 +373,176 @@
     }
   };
   var createSlice = (value, name) => new SliceType(value, name);
+  var _meta, _container, _clock, _injectedSlices, _consumedSlices, _recordedTimers, _waitTimers, _getSlice, _getTimer;
   var Inspector = class {
     /// Create an inspector with container, clock and metadata.
     constructor(container, clock, meta) {
-      this.#injectedSlices = /* @__PURE__ */ new Set();
-      this.#consumedSlices = /* @__PURE__ */ new Set();
-      this.#recordedTimers = /* @__PURE__ */ new Map();
-      this.#waitTimers = /* @__PURE__ */ new Map();
+      /// @internal
+      __privateAdd(this, _meta);
+      /// @internal
+      __privateAdd(this, _container);
+      /// @internal
+      __privateAdd(this, _clock);
+      __privateAdd(this, _injectedSlices);
+      __privateAdd(this, _consumedSlices);
+      __privateAdd(this, _recordedTimers);
+      __privateAdd(this, _waitTimers);
+      __privateAdd(this, _getSlice);
+      __privateAdd(this, _getTimer);
+      __privateSet(this, _injectedSlices, /* @__PURE__ */ new Set());
+      __privateSet(this, _consumedSlices, /* @__PURE__ */ new Set());
+      __privateSet(this, _recordedTimers, /* @__PURE__ */ new Map());
+      __privateSet(this, _waitTimers, /* @__PURE__ */ new Map());
       this.read = () => {
         return {
-          metadata: this.#meta,
-          injectedSlices: [...this.#injectedSlices].map((slice2) => ({
+          metadata: __privateGet(this, _meta),
+          injectedSlices: [...__privateGet(this, _injectedSlices)].map((slice2) => ({
             name: typeof slice2 === "string" ? slice2 : slice2.name,
-            value: this.#getSlice(slice2)
+            value: __privateGet(this, _getSlice).call(this, slice2)
           })),
-          consumedSlices: [...this.#consumedSlices].map((slice2) => ({
+          consumedSlices: [...__privateGet(this, _consumedSlices)].map((slice2) => ({
             name: typeof slice2 === "string" ? slice2 : slice2.name,
-            value: this.#getSlice(slice2)
+            value: __privateGet(this, _getSlice).call(this, slice2)
           })),
-          recordedTimers: [...this.#recordedTimers].map(
+          recordedTimers: [...__privateGet(this, _recordedTimers)].map(
             ([timer, { duration }]) => ({
               name: timer.name,
               duration,
-              status: this.#getTimer(timer)
+              status: __privateGet(this, _getTimer).call(this, timer)
             })
           ),
-          waitTimers: [...this.#waitTimers].map(([timer, { duration }]) => ({
+          waitTimers: [...__privateGet(this, _waitTimers)].map(([timer, { duration }]) => ({
             name: timer.name,
             duration,
-            status: this.#getTimer(timer)
+            status: __privateGet(this, _getTimer).call(this, timer)
           }))
         };
       };
       this.onRecord = (timerType) => {
-        this.#recordedTimers.set(timerType, { start: Date.now(), duration: 0 });
+        __privateGet(this, _recordedTimers).set(timerType, { start: Date.now(), duration: 0 });
       };
       this.onClear = (timerType) => {
-        this.#recordedTimers.delete(timerType);
+        __privateGet(this, _recordedTimers).delete(timerType);
       };
       this.onDone = (timerType) => {
-        const timer = this.#recordedTimers.get(timerType);
+        const timer = __privateGet(this, _recordedTimers).get(timerType);
         if (!timer) return;
         timer.duration = Date.now() - timer.start;
       };
       this.onWait = (timerType, promise) => {
         const start = Date.now();
         promise.finally(() => {
-          this.#waitTimers.set(timerType, { duration: Date.now() - start });
+          __privateGet(this, _waitTimers).set(timerType, { duration: Date.now() - start });
         }).catch(console.error);
       };
       this.onInject = (sliceType) => {
-        this.#injectedSlices.add(sliceType);
+        __privateGet(this, _injectedSlices).add(sliceType);
       };
       this.onRemove = (sliceType) => {
-        this.#injectedSlices.delete(sliceType);
+        __privateGet(this, _injectedSlices).delete(sliceType);
       };
       this.onUse = (sliceType) => {
-        this.#consumedSlices.add(sliceType);
+        __privateGet(this, _consumedSlices).add(sliceType);
       };
-      this.#getSlice = (sliceType) => {
-        return this.#container.get(sliceType).get();
-      };
-      this.#getTimer = (timerType) => {
-        return this.#clock.get(timerType).status;
-      };
-      this.#container = container;
-      this.#clock = clock;
-      this.#meta = meta;
+      __privateSet(this, _getSlice, (sliceType) => {
+        return __privateGet(this, _container).get(sliceType).get();
+      });
+      __privateSet(this, _getTimer, (timerType) => {
+        return __privateGet(this, _clock).get(timerType).status;
+      });
+      __privateSet(this, _container, container);
+      __privateSet(this, _clock, clock);
+      __privateSet(this, _meta, meta);
     }
-    /// @internal
-    #meta;
-    /// @internal
-    #container;
-    /// @internal
-    #clock;
-    #injectedSlices;
-    #consumedSlices;
-    #recordedTimers;
-    #waitTimers;
-    #getSlice;
-    #getTimer;
   };
-  var Ctx = class _Ctx {
+  _meta = new WeakMap();
+  _container = new WeakMap();
+  _clock = new WeakMap();
+  _injectedSlices = new WeakMap();
+  _consumedSlices = new WeakMap();
+  _recordedTimers = new WeakMap();
+  _waitTimers = new WeakMap();
+  _getSlice = new WeakMap();
+  _getTimer = new WeakMap();
+  var _container2, _clock2, _meta2, _inspector;
+  var _Ctx = class _Ctx {
     /// Create a ctx object with container and clock.
     constructor(container, clock, meta) {
+      /// @internal
+      __privateAdd(this, _container2);
+      /// @internal
+      __privateAdd(this, _clock2);
+      /// @internal
+      __privateAdd(this, _meta2);
+      /// @internal
+      __privateAdd(this, _inspector);
       this.produce = (meta2) => {
         if (meta2 && Object.keys(meta2).length)
-          return new _Ctx(this.#container, this.#clock, { ...meta2 });
+          return new _Ctx(__privateGet(this, _container2), __privateGet(this, _clock2), { ...meta2 });
         return this;
       };
       this.inject = (sliceType, value) => {
-        const slice2 = sliceType.create(this.#container.sliceMap);
+        const slice2 = sliceType.create(__privateGet(this, _container2).sliceMap);
         if (value != null) slice2.set(value);
-        this.#inspector?.onInject(sliceType);
+        __privateGet(this, _inspector)?.onInject(sliceType);
         return this;
       };
       this.remove = (sliceType) => {
-        this.#container.remove(sliceType);
-        this.#inspector?.onRemove(sliceType);
+        __privateGet(this, _container2).remove(sliceType);
+        __privateGet(this, _inspector)?.onRemove(sliceType);
         return this;
       };
       this.record = (timerType) => {
-        timerType.create(this.#clock.store);
-        this.#inspector?.onRecord(timerType);
+        timerType.create(__privateGet(this, _clock2).store);
+        __privateGet(this, _inspector)?.onRecord(timerType);
         return this;
       };
       this.clearTimer = (timerType) => {
-        this.#clock.remove(timerType);
-        this.#inspector?.onClear(timerType);
+        __privateGet(this, _clock2).remove(timerType);
+        __privateGet(this, _inspector)?.onClear(timerType);
         return this;
       };
-      this.isInjected = (sliceType) => this.#container.has(sliceType);
-      this.isRecorded = (timerType) => this.#clock.has(timerType);
+      this.isInjected = (sliceType) => __privateGet(this, _container2).has(sliceType);
+      this.isRecorded = (timerType) => __privateGet(this, _clock2).has(timerType);
       this.use = (sliceType) => {
-        this.#inspector?.onUse(sliceType);
-        return this.#container.get(sliceType);
+        __privateGet(this, _inspector)?.onUse(sliceType);
+        return __privateGet(this, _container2).get(sliceType);
       };
       this.get = (sliceType) => this.use(sliceType).get();
       this.set = (sliceType, value) => this.use(sliceType).set(value);
       this.update = (sliceType, updater) => this.use(sliceType).update(updater);
-      this.timer = (timer) => this.#clock.get(timer);
+      this.timer = (timer) => __privateGet(this, _clock2).get(timer);
       this.done = (timer) => {
         this.timer(timer).done();
-        this.#inspector?.onDone(timer);
+        __privateGet(this, _inspector)?.onDone(timer);
       };
       this.wait = (timer) => {
         const promise = this.timer(timer).start();
-        this.#inspector?.onWait(timer, promise);
+        __privateGet(this, _inspector)?.onWait(timer, promise);
         return promise;
       };
       this.waitTimers = async (slice2) => {
         await Promise.all(this.get(slice2).map((x) => this.wait(x)));
       };
-      this.#container = container;
-      this.#clock = clock;
-      this.#meta = meta;
-      if (meta) this.#inspector = new Inspector(container, clock, meta);
+      __privateSet(this, _container2, container);
+      __privateSet(this, _clock2, clock);
+      __privateSet(this, _meta2, meta);
+      if (meta) __privateSet(this, _inspector, new Inspector(container, clock, meta));
     }
-    /// @internal
-    #container;
-    /// @internal
-    #clock;
-    /// @internal
-    #meta;
-    /// @internal
-    #inspector;
     /// Get metadata of the ctx.
     get meta() {
-      return this.#meta;
+      return __privateGet(this, _meta2);
     }
     /// Get the inspector of the ctx.
     get inspector() {
-      return this.#inspector;
+      return __privateGet(this, _inspector);
     }
   };
+  _container2 = new WeakMap();
+  _clock2 = new WeakMap();
+  _meta2 = new WeakMap();
+  _inspector = new WeakMap();
+  var Ctx = _Ctx;
   var Clock = class {
     constructor() {
       this.store = /* @__PURE__ */ new Map();
@@ -532,64 +559,71 @@
       };
     }
   };
+  var _promise, _listener, _eventUniqId, _status, _removeListener, _waitTimeout;
   var Timer = class {
     /// @internal
     constructor(clock, type) {
-      this.#promise = null;
-      this.#listener = null;
-      this.#status = "pending";
+      __privateAdd(this, _promise);
+      __privateAdd(this, _listener);
+      /// @internal
+      __privateAdd(this, _eventUniqId);
+      __privateAdd(this, _status);
+      __privateAdd(this, _removeListener);
+      __privateAdd(this, _waitTimeout);
+      __privateSet(this, _promise, null);
+      __privateSet(this, _listener, null);
+      __privateSet(this, _status, "pending");
       this.start = () => {
-        this.#promise ??= new Promise((resolve, reject) => {
-          this.#listener = (e) => {
+        __privateGet(this, _promise) ?? __privateSet(this, _promise, new Promise((resolve, reject) => {
+          __privateSet(this, _listener, (e) => {
             if (!(e instanceof CustomEvent)) return;
-            if (e.detail.id === this.#eventUniqId) {
-              this.#status = "resolved";
-              this.#removeListener();
+            if (e.detail.id === __privateGet(this, _eventUniqId)) {
+              __privateSet(this, _status, "resolved");
+              __privateGet(this, _removeListener).call(this);
               e.stopImmediatePropagation();
               resolve();
             }
-          };
-          this.#waitTimeout(() => {
-            if (this.#status === "pending") this.#status = "rejected";
-            this.#removeListener();
+          });
+          __privateGet(this, _waitTimeout).call(this, () => {
+            if (__privateGet(this, _status) === "pending") __privateSet(this, _status, "rejected");
+            __privateGet(this, _removeListener).call(this);
             reject(new Error(`Timing ${this.type.name} timeout.`));
           });
-          this.#status = "pending";
-          addEventListener(this.type.name, this.#listener);
-        });
-        return this.#promise;
+          __privateSet(this, _status, "pending");
+          addEventListener(this.type.name, __privateGet(this, _listener));
+        }));
+        return __privateGet(this, _promise);
       };
       this.done = () => {
         const event = new CustomEvent(this.type.name, {
-          detail: { id: this.#eventUniqId }
+          detail: { id: __privateGet(this, _eventUniqId) }
         });
         dispatchEvent(event);
       };
-      this.#removeListener = () => {
-        if (this.#listener) removeEventListener(this.type.name, this.#listener);
-      };
-      this.#waitTimeout = (ifTimeout) => {
+      __privateSet(this, _removeListener, () => {
+        if (__privateGet(this, _listener)) removeEventListener(this.type.name, __privateGet(this, _listener));
+      });
+      __privateSet(this, _waitTimeout, (ifTimeout) => {
         setTimeout(() => {
           ifTimeout();
         }, this.type.timeout);
-      };
-      this.#eventUniqId = Symbol(type.name);
+      });
+      __privateSet(this, _eventUniqId, Symbol(type.name));
       this.type = type;
       clock.set(type.id, this);
     }
-    #promise;
-    #listener;
-    /// @internal
-    #eventUniqId;
-    #status;
     /// The status of the timer.
     /// Can be `pending`, `resolved` or `rejected`.
     get status() {
-      return this.#status;
+      return __privateGet(this, _status);
     }
-    #removeListener;
-    #waitTimeout;
   };
+  _promise = new WeakMap();
+  _listener = new WeakMap();
+  _eventUniqId = new WeakMap();
+  _status = new WeakMap();
+  _removeListener = new WeakMap();
+  _waitTimeout = new WeakMap();
   var TimerType = class {
     /// Create a timer type with a name and a timeout.
     /// The name should be unique in the clock.
@@ -1755,7 +1789,7 @@
     }
   };
   var emptyAttrs = /* @__PURE__ */ Object.create(null);
-  var Node = class _Node {
+  var Node2 = class _Node {
     /**
     @internal
     */
@@ -2156,8 +2190,8 @@
       return node2;
     }
   };
-  Node.prototype.text = void 0;
-  var TextNode = class _TextNode extends Node {
+  Node2.prototype.text = void 0;
+  var TextNode = class _TextNode extends Node2 {
     /**
     @internal
     */
@@ -2744,7 +2778,7 @@
     create(attrs = null, content3, marks) {
       if (this.isText)
         throw new Error("NodeType.create can't construct text nodes");
-      return new Node(this, this.computeAttrs(attrs), Fragment.from(content3), Mark.setFrom(marks));
+      return new Node2(this, this.computeAttrs(attrs), Fragment.from(content3), Mark.setFrom(marks));
     }
     /**
     Like [`create`](https://prosemirror.net/docs/ref/#model.NodeType.create), but check the given content
@@ -2754,7 +2788,7 @@
     createChecked(attrs = null, content3, marks) {
       content3 = Fragment.from(content3);
       this.checkContent(content3);
-      return new Node(this, this.computeAttrs(attrs), content3, Mark.setFrom(marks));
+      return new Node2(this, this.computeAttrs(attrs), content3, Mark.setFrom(marks));
     }
     /**
     Like [`create`](https://prosemirror.net/docs/ref/#model.NodeType.create), but see if it is
@@ -2777,7 +2811,7 @@
       let after = matched && matched.fillBefore(Fragment.empty, true);
       if (!after)
         return null;
-      return new Node(this, attrs, content3.append(after), Mark.setFrom(marks));
+      return new Node2(this, attrs, content3.append(after), Mark.setFrom(marks));
     }
     /**
     Returns true if the given fragment is valid content for this node
@@ -2973,7 +3007,7 @@
         let type = this.marks[prop], excl = type.spec.excludes;
         type.excluded = excl == null ? [type] : excl == "" ? [] : gatherMarks(this, excl.split(" "));
       }
-      this.nodeFromJSON = (json) => Node.fromJSON(this, json);
+      this.nodeFromJSON = (json) => Node2.fromJSON(this, json);
       this.markFromJSON = (json) => Mark.fromJSON(this, json);
       this.topNodeType = this.nodes[this.spec.topNode || "doc"];
       this.cached.wrappings = /* @__PURE__ */ Object.create(null);
@@ -12062,13 +12096,13 @@
   }
 
   // node_modules/@milkdown/transformer/lib/index.js
-  var __typeError = (msg) => {
+  var __typeError2 = (msg) => {
     throw TypeError(msg);
   };
-  var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
-  var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
-  var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
-  var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+  var __accessCheck2 = (obj, member, msg) => member.has(obj) || __typeError2("Cannot " + msg);
+  var __privateGet2 = (obj, member, getter) => (__accessCheck2(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+  var __privateAdd2 = (obj, member, value) => member.has(obj) ? __typeError2("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
+  var __privateSet2 = (obj, member, value, setter) => (__accessCheck2(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
   var _marks;
   var _hasText;
   var _maybeMerge;
@@ -12134,21 +12168,21 @@
     /// @internal
     constructor(schema4) {
       super();
-      __privateAdd(this, _marks);
-      __privateAdd(this, _hasText);
-      __privateAdd(this, _maybeMerge);
-      __privateAdd(this, _matchTarget);
-      __privateAdd(this, _runNode);
-      __privateAdd(this, _closeNodeAndPush);
-      __privateAdd(this, _addNodeAndPush);
-      __privateSet(this, _marks, Mark.none);
-      __privateSet(this, _hasText, (node2) => node2.isText);
-      __privateSet(this, _maybeMerge, (a, b) => {
-        if (__privateGet(this, _hasText).call(this, a) && __privateGet(this, _hasText).call(this, b) && Mark.sameSet(a.marks, b.marks))
+      __privateAdd2(this, _marks);
+      __privateAdd2(this, _hasText);
+      __privateAdd2(this, _maybeMerge);
+      __privateAdd2(this, _matchTarget);
+      __privateAdd2(this, _runNode);
+      __privateAdd2(this, _closeNodeAndPush);
+      __privateAdd2(this, _addNodeAndPush);
+      __privateSet2(this, _marks, Mark.none);
+      __privateSet2(this, _hasText, (node2) => node2.isText);
+      __privateSet2(this, _maybeMerge, (a, b) => {
+        if (__privateGet2(this, _hasText).call(this, a) && __privateGet2(this, _hasText).call(this, b) && Mark.sameSet(a.marks, b.marks))
           return this.schema.text(a.text + b.text, a.marks);
         return void 0;
       });
-      __privateSet(this, _matchTarget, (node2) => {
+      __privateSet2(this, _matchTarget, (node2) => {
         const result = Object.values({
           ...this.schema.nodes,
           ...this.schema.marks
@@ -12159,8 +12193,8 @@
         if (!result) throw parserMatchError(node2);
         return result;
       });
-      __privateSet(this, _runNode, (node2) => {
-        const type = __privateGet(this, _matchTarget).call(this, node2);
+      __privateSet2(this, _runNode, (node2) => {
+        const type = __privateGet2(this, _matchTarget).call(this, node2);
         const spec2 = type.spec;
         spec2.parseMarkdown.runner(this, node2, type);
       });
@@ -12173,28 +12207,28 @@
         this.open(ParserStackElement.create(nodeType, [], attrs));
         return this;
       };
-      __privateSet(this, _closeNodeAndPush, () => {
-        __privateSet(this, _marks, Mark.none);
+      __privateSet2(this, _closeNodeAndPush, () => {
+        __privateSet2(this, _marks, Mark.none);
         const element2 = this.close();
-        return __privateGet(this, _addNodeAndPush).call(this, element2.type, element2.attrs, element2.content);
+        return __privateGet2(this, _addNodeAndPush).call(this, element2.type, element2.attrs, element2.content);
       });
       this.closeNode = () => {
         try {
-          __privateGet(this, _closeNodeAndPush).call(this);
+          __privateGet2(this, _closeNodeAndPush).call(this);
         } catch (e) {
           console.error(e);
         }
         return this;
       };
-      __privateSet(this, _addNodeAndPush, (nodeType, attrs, content3) => {
-        const node2 = nodeType.createAndFill(attrs, content3, __privateGet(this, _marks));
+      __privateSet2(this, _addNodeAndPush, (nodeType, attrs, content3) => {
+        const node2 = nodeType.createAndFill(attrs, content3, __privateGet2(this, _marks));
         if (!node2) throw createNodeInParserFail(nodeType, attrs, content3);
         this.push(node2);
         return node2;
       });
       this.addNode = (nodeType, attrs, content3) => {
         try {
-          __privateGet(this, _addNodeAndPush).call(this, nodeType, attrs, content3);
+          __privateGet2(this, _addNodeAndPush).call(this, nodeType, attrs, content3);
         } catch (e) {
           console.error(e);
         }
@@ -12202,11 +12236,11 @@
       };
       this.openMark = (markType, attrs) => {
         const mark = markType.create(attrs);
-        __privateSet(this, _marks, mark.addToSet(__privateGet(this, _marks)));
+        __privateSet2(this, _marks, mark.addToSet(__privateGet2(this, _marks)));
         return this;
       };
       this.closeMark = (markType) => {
-        __privateSet(this, _marks, markType.removeFromSet(__privateGet(this, _marks)));
+        __privateSet2(this, _marks, markType.removeFromSet(__privateGet2(this, _marks)));
         return this;
       };
       this.addText = (text5) => {
@@ -12214,12 +12248,12 @@
           const topElement = this.top();
           if (!topElement) throw stackOverFlow();
           const prevNode = topElement.pop();
-          const currNode = this.schema.text(text5, __privateGet(this, _marks));
+          const currNode = this.schema.text(text5, __privateGet2(this, _marks));
           if (!prevNode) {
             topElement.push(currNode);
             return this;
           }
-          const merged = __privateGet(this, _maybeMerge).call(this, prevNode, currNode);
+          const merged = __privateGet2(this, _maybeMerge).call(this, prevNode, currNode);
           if (merged) {
             topElement.push(merged);
             return this;
@@ -12234,12 +12268,12 @@
       this.build = () => {
         let doc4;
         do
-          doc4 = __privateGet(this, _closeNodeAndPush).call(this);
+          doc4 = __privateGet2(this, _closeNodeAndPush).call(this);
         while (this.size());
         return doc4;
       };
       this.next = (nodes = []) => {
-        [nodes].flat().forEach((node2) => __privateGet(this, _runNode).call(this, node2));
+        [nodes].flat().forEach((node2) => __privateGet2(this, _runNode).call(this, node2));
         return this;
       };
       this.toDoc = () => this.build();
@@ -12290,21 +12324,21 @@
     /// @internal
     constructor(schema4) {
       super();
-      __privateAdd(this, _marks2);
-      __privateAdd(this, _matchTarget2);
-      __privateAdd(this, _runProseNode);
-      __privateAdd(this, _runProseMark);
-      __privateAdd(this, _runNode2);
-      __privateAdd(this, _searchType);
-      __privateAdd(this, _maybeMergeChildren);
-      __privateAdd(this, _createMarkdownNode);
-      __privateAdd(this, _moveSpaces);
-      __privateAdd(this, _closeNodeAndPush2);
-      __privateAdd(this, _addNodeAndPush2);
-      __privateAdd(this, _openMark);
-      __privateAdd(this, _closeMark);
-      __privateSet(this, _marks2, Mark.none);
-      __privateSet(this, _matchTarget2, (node2) => {
+      __privateAdd2(this, _marks2);
+      __privateAdd2(this, _matchTarget2);
+      __privateAdd2(this, _runProseNode);
+      __privateAdd2(this, _runProseMark);
+      __privateAdd2(this, _runNode2);
+      __privateAdd2(this, _searchType);
+      __privateAdd2(this, _maybeMergeChildren);
+      __privateAdd2(this, _createMarkdownNode);
+      __privateAdd2(this, _moveSpaces);
+      __privateAdd2(this, _closeNodeAndPush2);
+      __privateAdd2(this, _addNodeAndPush2);
+      __privateAdd2(this, _openMark);
+      __privateAdd2(this, _closeMark);
+      __privateSet2(this, _marks2, Mark.none);
+      __privateSet2(this, _matchTarget2, (node2) => {
         const result = Object.values({
           ...this.schema.nodes,
           ...this.schema.marks
@@ -12315,25 +12349,25 @@
         if (!result) throw serializerMatchError(node2.type);
         return result;
       });
-      __privateSet(this, _runProseNode, (node2) => {
-        const type = __privateGet(this, _matchTarget2).call(this, node2);
+      __privateSet2(this, _runProseNode, (node2) => {
+        const type = __privateGet2(this, _matchTarget2).call(this, node2);
         const spec2 = type.spec;
         return spec2.toMarkdown.runner(this, node2);
       });
-      __privateSet(this, _runProseMark, (mark, node2) => {
-        const type = __privateGet(this, _matchTarget2).call(this, mark);
+      __privateSet2(this, _runProseMark, (mark, node2) => {
+        const type = __privateGet2(this, _matchTarget2).call(this, mark);
         const spec2 = type.spec;
         return spec2.toMarkdown.runner(this, mark, node2);
       });
-      __privateSet(this, _runNode2, (node2) => {
+      __privateSet2(this, _runNode2, (node2) => {
         const { marks } = node2;
         const getPriority = (x) => x.type.spec.priority ?? 50;
         const tmp = [...marks].sort((a, b) => getPriority(a) - getPriority(b));
-        const unPreventNext = tmp.every((mark) => !__privateGet(this, _runProseMark).call(this, mark, node2));
-        if (unPreventNext) __privateGet(this, _runProseNode).call(this, node2);
-        marks.forEach((mark) => __privateGet(this, _closeMark).call(this, mark));
+        const unPreventNext = tmp.every((mark) => !__privateGet2(this, _runProseMark).call(this, mark, node2));
+        if (unPreventNext) __privateGet2(this, _runProseNode).call(this, node2);
+        marks.forEach((mark) => __privateGet2(this, _closeMark).call(this, mark));
       });
-      __privateSet(this, _searchType, (child, type) => {
+      __privateSet2(this, _searchType, (child, type) => {
         if (child.type === type) return child;
         if (child.children?.length !== 1) return child;
         const searchNode = (node22) => {
@@ -12351,14 +12385,14 @@
         target.children = [node2];
         return target;
       });
-      __privateSet(this, _maybeMergeChildren, (node2) => {
+      __privateSet2(this, _maybeMergeChildren, (node2) => {
         const { children } = node2;
         if (!children) return node2;
         node2.children = children.reduce((nextChildren, child, index2) => {
           if (index2 === 0) return [child];
           const last = nextChildren.at(-1);
           if (last && last.isMark && child.isMark) {
-            child = __privateGet(this, _searchType).call(this, child, last.type);
+            child = __privateGet2(this, _searchType).call(this, child, last.type);
             const { children: currChildren, ...currRest } = child;
             const { children: prevChildren, ...prevRest } = last;
             if (child.type === last.type && currChildren && prevChildren && JSON.stringify(currRest) === JSON.stringify(prevRest)) {
@@ -12366,14 +12400,14 @@
                 ...prevRest,
                 children: [...prevChildren, ...currChildren]
               };
-              return nextChildren.slice(0, -1).concat(__privateGet(this, _maybeMergeChildren).call(this, next));
+              return nextChildren.slice(0, -1).concat(__privateGet2(this, _maybeMergeChildren).call(this, next));
             }
           }
           return nextChildren.concat(child);
         }, []);
         return node2;
       });
-      __privateSet(this, _createMarkdownNode, (element2) => {
+      __privateSet2(this, _createMarkdownNode, (element2) => {
         const node2 = {
           ...element2.props,
           type: element2.type
@@ -12386,7 +12420,7 @@
         this.open(SerializerStackElement.create(type, void 0, value, props));
         return this;
       };
-      __privateSet(this, _moveSpaces, (element2, onPush) => {
+      __privateSet2(this, _moveSpaces, (element2, onPush) => {
         let startSpaces = "";
         let endSpaces = "";
         const children = element2.children;
@@ -12418,66 +12452,66 @@
             firstChild.value = trimmed;
           }
         }
-        if (startSpaces.length) __privateGet(this, _addNodeAndPush2).call(this, "text", void 0, startSpaces);
+        if (startSpaces.length) __privateGet2(this, _addNodeAndPush2).call(this, "text", void 0, startSpaces);
         const result = onPush();
-        if (endSpaces.length) __privateGet(this, _addNodeAndPush2).call(this, "text", void 0, endSpaces);
+        if (endSpaces.length) __privateGet2(this, _addNodeAndPush2).call(this, "text", void 0, endSpaces);
         return result;
       });
-      __privateSet(this, _closeNodeAndPush2, (trim = false) => {
+      __privateSet2(this, _closeNodeAndPush2, (trim = false) => {
         const element2 = this.close();
-        const onPush = () => __privateGet(this, _addNodeAndPush2).call(this, element2.type, element2.children, element2.value, element2.props);
-        if (trim) return __privateGet(this, _moveSpaces).call(this, element2, onPush);
+        const onPush = () => __privateGet2(this, _addNodeAndPush2).call(this, element2.type, element2.children, element2.value, element2.props);
+        if (trim) return __privateGet2(this, _moveSpaces).call(this, element2, onPush);
         return onPush();
       });
       this.closeNode = () => {
-        __privateGet(this, _closeNodeAndPush2).call(this);
+        __privateGet2(this, _closeNodeAndPush2).call(this);
         return this;
       };
-      __privateSet(this, _addNodeAndPush2, (type, children, value, props) => {
+      __privateSet2(this, _addNodeAndPush2, (type, children, value, props) => {
         const element2 = SerializerStackElement.create(type, children, value, props);
-        const node2 = __privateGet(this, _maybeMergeChildren).call(this, __privateGet(this, _createMarkdownNode).call(this, element2));
+        const node2 = __privateGet2(this, _maybeMergeChildren).call(this, __privateGet2(this, _createMarkdownNode).call(this, element2));
         this.push(node2);
         return node2;
       });
       this.addNode = (type, children, value, props) => {
-        __privateGet(this, _addNodeAndPush2).call(this, type, children, value, props);
+        __privateGet2(this, _addNodeAndPush2).call(this, type, children, value, props);
         return this;
       };
-      __privateSet(this, _openMark, (mark, type, value, props) => {
-        const isIn = mark.isInSet(__privateGet(this, _marks2));
+      __privateSet2(this, _openMark, (mark, type, value, props) => {
+        const isIn = mark.isInSet(__privateGet2(this, _marks2));
         if (isIn) return this;
-        __privateSet(this, _marks2, mark.addToSet(__privateGet(this, _marks2)));
+        __privateSet2(this, _marks2, mark.addToSet(__privateGet2(this, _marks2)));
         return this.openNode(type, value, { ...props, isMark: true });
       });
-      __privateSet(this, _closeMark, (mark) => {
-        const isIn = mark.isInSet(__privateGet(this, _marks2));
+      __privateSet2(this, _closeMark, (mark) => {
+        const isIn = mark.isInSet(__privateGet2(this, _marks2));
         if (!isIn) return;
-        __privateSet(this, _marks2, mark.type.removeFromSet(__privateGet(this, _marks2)));
-        __privateGet(this, _closeNodeAndPush2).call(this, true);
+        __privateSet2(this, _marks2, mark.type.removeFromSet(__privateGet2(this, _marks2)));
+        __privateGet2(this, _closeNodeAndPush2).call(this, true);
       });
       this.withMark = (mark, type, value, props) => {
-        __privateGet(this, _openMark).call(this, mark, type, value, props);
+        __privateGet2(this, _openMark).call(this, mark, type, value, props);
         return this;
       };
       this.closeMark = (mark) => {
-        __privateGet(this, _closeMark).call(this, mark);
+        __privateGet2(this, _closeMark).call(this, mark);
         return this;
       };
       this.build = () => {
         let doc4 = null;
         do
-          doc4 = __privateGet(this, _closeNodeAndPush2).call(this);
+          doc4 = __privateGet2(this, _closeNodeAndPush2).call(this);
         while (this.size());
         return doc4;
       };
       this.next = (nodes) => {
         if (isFragment(nodes)) {
           nodes.forEach((node2) => {
-            __privateGet(this, _runNode2).call(this, node2);
+            __privateGet2(this, _runNode2).call(this, node2);
           });
           return this;
         }
-        __privateGet(this, _runNode2).call(this, nodes);
+        __privateGet2(this, _runNode2).call(this, nodes);
         return this;
       };
       this.toString = (remark) => remark.stringify(this.build());
@@ -15175,7 +15209,7 @@
       let instance = new _EditorState($config);
       $config.fields.forEach((field) => {
         if (field.name == "doc") {
-          instance.doc = Node.fromJSON(config2.schema, json.doc);
+          instance.doc = Node2.fromJSON(config2.schema, json.doc);
         } else if (field.name == "selection") {
           instance.selection = Selection.fromJSON(instance.doc, json.selection);
         } else if (field.name == "storedMarks") {
@@ -21661,16 +21695,19 @@
   withMeta(schema, {
     displayName: "Schema"
   });
+  var _container3, _ctx;
   var CommandManager = class {
     constructor() {
-      this.#container = new Container();
-      this.#ctx = null;
+      __privateAdd(this, _container3);
+      __privateAdd(this, _ctx);
+      __privateSet(this, _container3, new Container());
+      __privateSet(this, _ctx, null);
       this.setCtx = (ctx) => {
-        this.#ctx = ctx;
+        __privateSet(this, _ctx, ctx);
       };
       this.chain = () => {
-        if (this.#ctx == null) throw callCommandBeforeEditorView();
-        const ctx = this.#ctx;
+        if (__privateGet(this, _ctx) == null) throw callCommandBeforeEditorView();
+        const ctx = __privateGet(this, _ctx);
         const commands22 = [];
         const get2 = this.get.bind(this);
         const chains = {
@@ -21693,37 +21730,37 @@
         return chains;
       };
     }
-    #container;
-    #ctx;
     get ctx() {
-      return this.#ctx;
+      return __privateGet(this, _ctx);
     }
     /// Register a command into the manager.
     create(meta, value) {
-      const slice2 = meta.create(this.#container.sliceMap);
+      const slice2 = meta.create(__privateGet(this, _container3).sliceMap);
       slice2.set(value);
       return slice2;
     }
     get(slice2) {
-      return this.#container.get(slice2).get();
+      return __privateGet(this, _container3).get(slice2).get();
     }
     remove(slice2) {
-      return this.#container.remove(slice2);
+      return __privateGet(this, _container3).remove(slice2);
     }
     call(slice2, payload) {
-      if (this.#ctx == null) throw callCommandBeforeEditorView();
+      if (__privateGet(this, _ctx) == null) throw callCommandBeforeEditorView();
       const cmd = this.get(slice2);
       const command = cmd(payload);
-      const view = this.#ctx.get(editorViewCtx);
+      const view = __privateGet(this, _ctx).get(editorViewCtx);
       return command(view.state, view.dispatch, view);
     }
     /// Call an inline command.
     inline(command) {
-      if (this.#ctx == null) throw callCommandBeforeEditorView();
-      const view = this.#ctx.get(editorViewCtx);
+      if (__privateGet(this, _ctx) == null) throw callCommandBeforeEditorView();
+      const view = __privateGet(this, _ctx).get(editorViewCtx);
       return command(view.state, view.dispatch, view);
     }
   };
+  _container3 = new WeakMap();
+  _ctx = new WeakMap();
   function createCmdKey(key22 = "cmdKey") {
     return createSlice(() => () => false, key22);
   }
@@ -21755,17 +21792,20 @@
     keymap22.Backspace = handleBackspace;
     return keymap22;
   }
+  var _ctx2, _keymap;
   var KeymapManager = class {
     constructor() {
-      this.#ctx = null;
-      this.#keymap = [];
+      __privateAdd(this, _ctx2);
+      __privateAdd(this, _keymap);
+      __privateSet(this, _ctx2, null);
+      __privateSet(this, _keymap, []);
       this.setCtx = (ctx) => {
-        this.#ctx = ctx;
+        __privateSet(this, _ctx2, ctx);
       };
       this.add = (keymap22) => {
-        this.#keymap.push(keymap22);
+        __privateGet(this, _keymap).push(keymap22);
         return () => {
-          this.#keymap = this.#keymap.filter((item) => item !== keymap22);
+          __privateSet(this, _keymap, __privateGet(this, _keymap).filter((item) => item !== keymap22));
         };
       };
       this.addObjectKeymap = (keymaps) => {
@@ -21776,14 +21816,14 @@
               key: key22,
               onRun: () => command
             };
-            this.#keymap.push(keymapItem);
+            __privateGet(this, _keymap).push(keymapItem);
             remove.push(() => {
-              this.#keymap = this.#keymap.filter((item) => item !== keymapItem);
+              __privateSet(this, _keymap, __privateGet(this, _keymap).filter((item) => item !== keymapItem));
             });
           } else {
-            this.#keymap.push(command);
+            __privateGet(this, _keymap).push(command);
             remove.push(() => {
-              this.#keymap = this.#keymap.filter((item) => item !== command);
+              __privateSet(this, _keymap, __privateGet(this, _keymap).filter((item) => item !== command));
             });
           }
         });
@@ -21797,7 +21837,7 @@
       };
       this.build = () => {
         const keymap22 = {};
-        this.#keymap.forEach((item) => {
+        __privateGet(this, _keymap).forEach((item) => {
           keymap22[item.key] = [...keymap22[item.key] || [], item];
         });
         const output = Object.fromEntries(
@@ -21806,7 +21846,7 @@
               (a, b) => (b.priority ?? 50) - (a.priority ?? 50)
             );
             const command = (state, dispatch, view) => {
-              const ctx = this.#ctx;
+              const ctx = __privateGet(this, _ctx2);
               if (ctx == null) throw ctxCallOutOfScope();
               const commands22 = sortedItems.map((item) => item.onRun(ctx));
               const chained = chainCommands(...commands22);
@@ -21818,12 +21858,12 @@
         return output;
       };
     }
-    #ctx;
-    #keymap;
     get ctx() {
-      return this.#ctx;
+      return __privateGet(this, _ctx2);
     }
   };
+  _ctx2 = new WeakMap();
+  _keymap = new WeakMap();
   var keymapCtx = createSlice(new KeymapManager(), "keymap");
   var keymapTimerCtx = createSlice([SchemaReady], "keymapTimer");
   var KeymapReady = createTimer("KeymapReady");
@@ -21904,7 +21944,7 @@
     if (defaultValue.type === "html")
       return DOMParser.fromSchema(schema22).parse(defaultValue.dom);
     if (defaultValue.type === "json")
-      return Node.fromJSON(schema22, defaultValue.value);
+      return Node2.fromJSON(schema22, defaultValue.value);
     throw docTypeError(defaultValue);
   }
   var key$1 = new PluginKey("MILKDOWN_STATE_TRACKER");
@@ -21933,7 +21973,7 @@
           state: {
             init: () => {
             },
-            apply: (_tr, _value, _oldState, newState) => {
+            apply: (_tr, _value2, _oldState, newState) => {
               ctx.set(editorStateCtx, newState);
             }
           }
@@ -22065,21 +22105,37 @@
   withMeta(editorView, {
     displayName: "EditorView"
   });
-  var Editor = class _Editor {
+  var _enableInspector, _status2, _configureList, _onStatusChange, _container4, _clock3, _usrPluginStore, _sysPluginStore, _ctx3, _loadInternal, _prepare, _cleanup, _cleanupInternal, _setStatus, _loadPluginInStore;
+  var _Editor = class _Editor {
     constructor() {
-      this.#enableInspector = false;
-      this.#status = "Idle";
-      this.#configureList = [];
-      this.#onStatusChange = () => void 0;
-      this.#container = new Container();
-      this.#clock = new Clock();
-      this.#usrPluginStore = /* @__PURE__ */ new Map();
-      this.#sysPluginStore = /* @__PURE__ */ new Map();
-      this.#ctx = new Ctx(this.#container, this.#clock);
-      this.#loadInternal = () => {
+      __privateAdd(this, _enableInspector);
+      __privateAdd(this, _status2);
+      __privateAdd(this, _configureList);
+      __privateAdd(this, _onStatusChange);
+      __privateAdd(this, _container4);
+      __privateAdd(this, _clock3);
+      __privateAdd(this, _usrPluginStore);
+      __privateAdd(this, _sysPluginStore);
+      __privateAdd(this, _ctx3);
+      __privateAdd(this, _loadInternal);
+      __privateAdd(this, _prepare);
+      __privateAdd(this, _cleanup);
+      __privateAdd(this, _cleanupInternal);
+      __privateAdd(this, _setStatus);
+      __privateAdd(this, _loadPluginInStore);
+      __privateSet(this, _enableInspector, false);
+      __privateSet(this, _status2, "Idle");
+      __privateSet(this, _configureList, []);
+      __privateSet(this, _onStatusChange, () => void 0);
+      __privateSet(this, _container4, new Container());
+      __privateSet(this, _clock3, new Clock());
+      __privateSet(this, _usrPluginStore, /* @__PURE__ */ new Map());
+      __privateSet(this, _sysPluginStore, /* @__PURE__ */ new Map());
+      __privateSet(this, _ctx3, new Ctx(__privateGet(this, _container4), __privateGet(this, _clock3)));
+      __privateSet(this, _loadInternal, () => {
         const configPlugin = config(async (ctx) => {
           await Promise.all(
-            this.#configureList.map((fn) => Promise.resolve(fn(ctx)))
+            __privateGet(this, _configureList).map((fn) => Promise.resolve(fn(ctx)))
           );
         });
         const internalPlugins = [
@@ -22094,25 +22150,25 @@
           init(this),
           configPlugin
         ];
-        this.#prepare(internalPlugins, this.#sysPluginStore);
-      };
-      this.#prepare = (plugins3, store) => {
+        __privateGet(this, _prepare).call(this, internalPlugins, __privateGet(this, _sysPluginStore));
+      });
+      __privateSet(this, _prepare, (plugins3, store) => {
         plugins3.forEach((plugin) => {
-          const ctx = this.#ctx.produce(
-            this.#enableInspector ? plugin.meta : void 0
+          const ctx = __privateGet(this, _ctx3).produce(
+            __privateGet(this, _enableInspector) ? plugin.meta : void 0
           );
           const handler = plugin(ctx);
           store.set(plugin, { ctx, handler, cleanup: void 0 });
         });
-      };
-      this.#cleanup = (plugins3, remove = false) => {
+      });
+      __privateSet(this, _cleanup, (plugins3, remove = false) => {
         return Promise.all(
           [plugins3].flat().map(async (plugin) => {
-            const loader = this.#usrPluginStore.get(plugin);
+            const loader = __privateGet(this, _usrPluginStore).get(plugin);
             const cleanup = loader?.cleanup;
-            if (remove) this.#usrPluginStore.delete(plugin);
+            if (remove) __privateGet(this, _usrPluginStore).delete(plugin);
             else
-              this.#usrPluginStore.set(plugin, {
+              __privateGet(this, _usrPluginStore).set(plugin, {
                 ctx: void 0,
                 handler: void 0,
                 cleanup: void 0
@@ -22121,59 +22177,59 @@
             return cleanup;
           })
         );
-      };
-      this.#cleanupInternal = async () => {
+      });
+      __privateSet(this, _cleanupInternal, async () => {
         await Promise.all(
-          [...this.#sysPluginStore.entries()].map(async ([_, { cleanup }]) => {
+          [...__privateGet(this, _sysPluginStore).entries()].map(async ([_, { cleanup }]) => {
             if (typeof cleanup === "function") return cleanup();
             return cleanup;
           })
         );
-        this.#sysPluginStore.clear();
-      };
-      this.#setStatus = (status) => {
-        this.#status = status;
-        this.#onStatusChange(status);
-      };
-      this.#loadPluginInStore = (store) => {
+        __privateGet(this, _sysPluginStore).clear();
+      });
+      __privateSet(this, _setStatus, (status) => {
+        __privateSet(this, _status2, status);
+        __privateGet(this, _onStatusChange).call(this, status);
+      });
+      __privateSet(this, _loadPluginInStore, (store) => {
         return [...store.entries()].map(async ([key22, loader]) => {
           const { ctx, handler } = loader;
           if (!handler) return;
           const cleanup = await handler();
           store.set(key22, { ctx, handler, cleanup });
         });
-      };
+      });
       this.enableInspector = (enable = true) => {
-        this.#enableInspector = enable;
+        __privateSet(this, _enableInspector, enable);
         return this;
       };
       this.onStatusChange = (onChange) => {
-        this.#onStatusChange = onChange;
+        __privateSet(this, _onStatusChange, onChange);
         return this;
       };
       this.config = (configure3) => {
-        this.#configureList.push(configure3);
+        __privateGet(this, _configureList).push(configure3);
         return this;
       };
       this.removeConfig = (configure3) => {
-        this.#configureList = this.#configureList.filter((x) => x !== configure3);
+        __privateSet(this, _configureList, __privateGet(this, _configureList).filter((x) => x !== configure3));
         return this;
       };
       this.use = (plugins3) => {
         const _plugins = [plugins3].flat();
         _plugins.flat().forEach((plugin) => {
-          this.#usrPluginStore.set(plugin, {
+          __privateGet(this, _usrPluginStore).set(plugin, {
             ctx: void 0,
             handler: void 0,
             cleanup: void 0
           });
         });
-        if (this.#status === "Created")
-          this.#prepare(_plugins, this.#usrPluginStore);
+        if (__privateGet(this, _status2) === "Created")
+          __privateGet(this, _prepare).call(this, _plugins, __privateGet(this, _usrPluginStore));
         return this;
       };
       this.remove = async (plugins3) => {
-        if (this.#status === "OnCreate") {
+        if (__privateGet(this, _status2) === "OnCreate") {
           console.warn(
             "[Milkdown]: You are trying to remove plugins when the editor is creating, this is not recommended, please check your code."
           );
@@ -22183,92 +22239,81 @@
             }, 50);
           });
         }
-        await this.#cleanup([plugins3].flat(), true);
+        await __privateGet(this, _cleanup).call(this, [plugins3].flat(), true);
         return this;
       };
       this.create = async () => {
-        if (this.#status === "OnCreate") return this;
-        if (this.#status === "Created") await this.destroy();
-        this.#setStatus(
-          "OnCreate"
-          /* OnCreate */
-        );
-        this.#loadInternal();
-        this.#prepare([...this.#usrPluginStore.keys()], this.#usrPluginStore);
+        if (__privateGet(this, _status2) === "OnCreate") return this;
+        if (__privateGet(this, _status2) === "Created") await this.destroy();
+        __privateGet(this, _setStatus).call(this, "OnCreate");
+        __privateGet(this, _loadInternal).call(this);
+        __privateGet(this, _prepare).call(this, [...__privateGet(this, _usrPluginStore).keys()], __privateGet(this, _usrPluginStore));
         await Promise.all(
           [
-            this.#loadPluginInStore(this.#sysPluginStore),
-            this.#loadPluginInStore(this.#usrPluginStore)
+            __privateGet(this, _loadPluginInStore).call(this, __privateGet(this, _sysPluginStore)),
+            __privateGet(this, _loadPluginInStore).call(this, __privateGet(this, _usrPluginStore))
           ].flat()
         );
-        this.#setStatus(
-          "Created"
-          /* Created */
-        );
+        __privateGet(this, _setStatus).call(this, "Created");
         return this;
       };
       this.destroy = async (clearPlugins = false) => {
-        if (this.#status === "Destroyed" || this.#status === "OnDestroy")
+        if (__privateGet(this, _status2) === "Destroyed" || __privateGet(this, _status2) === "OnDestroy")
           return this;
-        if (this.#status === "OnCreate") {
+        if (__privateGet(this, _status2) === "OnCreate") {
           return new Promise((resolve) => {
             setTimeout(() => {
               resolve(this.destroy(clearPlugins));
             }, 50);
           });
         }
-        if (clearPlugins) this.#configureList = [];
-        this.#setStatus(
-          "OnDestroy"
-          /* OnDestroy */
-        );
-        await this.#cleanup([...this.#usrPluginStore.keys()], clearPlugins);
-        await this.#cleanupInternal();
-        this.#setStatus(
-          "Destroyed"
-          /* Destroyed */
-        );
+        if (clearPlugins) __privateSet(this, _configureList, []);
+        __privateGet(this, _setStatus).call(this, "OnDestroy");
+        await __privateGet(this, _cleanup).call(this, [...__privateGet(this, _usrPluginStore).keys()], clearPlugins);
+        await __privateGet(this, _cleanupInternal).call(this);
+        __privateGet(this, _setStatus).call(this, "Destroyed");
         return this;
       };
-      this.action = (action) => action(this.#ctx);
+      this.action = (action) => action(__privateGet(this, _ctx3));
       this.inspect = () => {
-        if (!this.#enableInspector) {
+        if (!__privateGet(this, _enableInspector)) {
           console.warn(
             "[Milkdown]: You are trying to collect inspection when inspector is disabled, please enable inspector by `editor.enableInspector()` first."
           );
           return [];
         }
-        return [...this.#sysPluginStore.values(), ...this.#usrPluginStore.values()].map(({ ctx }) => ctx?.inspector?.read()).filter((x) => Boolean(x));
+        return [...__privateGet(this, _sysPluginStore).values(), ...__privateGet(this, _usrPluginStore).values()].map(({ ctx }) => ctx?.inspector?.read()).filter((x) => Boolean(x));
       };
     }
     /// Create a new editor instance.
     static make() {
       return new _Editor();
     }
-    #enableInspector;
-    #status;
-    #configureList;
-    #onStatusChange;
-    #container;
-    #clock;
-    #usrPluginStore;
-    #sysPluginStore;
-    #ctx;
-    #loadInternal;
-    #prepare;
-    #cleanup;
-    #cleanupInternal;
-    #setStatus;
-    #loadPluginInStore;
     /// Get the ctx of the editor.
     get ctx() {
-      return this.#ctx;
+      return __privateGet(this, _ctx3);
     }
     /// Get the status of the editor.
     get status() {
-      return this.#status;
+      return __privateGet(this, _status2);
     }
   };
+  _enableInspector = new WeakMap();
+  _status2 = new WeakMap();
+  _configureList = new WeakMap();
+  _onStatusChange = new WeakMap();
+  _container4 = new WeakMap();
+  _clock3 = new WeakMap();
+  _usrPluginStore = new WeakMap();
+  _sysPluginStore = new WeakMap();
+  _ctx3 = new WeakMap();
+  _loadInternal = new WeakMap();
+  _prepare = new WeakMap();
+  _cleanup = new WeakMap();
+  _cleanupInternal = new WeakMap();
+  _setStatus = new WeakMap();
+  _loadPluginInStore = new WeakMap();
+  var Editor = _Editor;
 
   // node_modules/nanoid/index.browser.js
   var random = (bytes) => crypto.getRandomValues(new Uint8Array(bytes));
@@ -23325,7 +23370,7 @@
   });
   var wrapInHeadingCommand = $command("WrapInHeading", (ctx) => {
     return (level) => {
-      level ??= 1;
+      level ?? (level = 1);
       if (level < 1) return setBlockType2(paragraphSchema.type(ctx));
       return setBlockType2(headingSchema.type(ctx), { level });
     };
@@ -24452,7 +24497,7 @@
       if (!nodeType) return false;
       const tr = state.tr;
       try {
-        const node2 = nodeType instanceof Node ? nodeType : nodeType.createAndFill(attrs);
+        const node2 = nodeType instanceof Node2 ? nodeType : nodeType.createAndFill(attrs);
         if (!node2) return false;
         tr.replaceSelectionWith(node2);
       } catch {
@@ -31980,6 +32025,50 @@
   var currentMatchIndex = -1;
   var isReplaceMode = false;
   var caseSensitive = false;
+  var findPluginKey = new PluginKey("find");
+  function createFindPlugin() {
+    return new Plugin({
+      key: findPluginKey,
+      state: {
+        init() {
+          return DecorationSet.empty;
+        },
+        apply(tr, decorationSet) {
+          const meta = tr.getMeta(findPluginKey);
+          if (meta) {
+            return meta.decorationSet;
+          }
+          return decorationSet.map(tr.mapping, tr.doc);
+        }
+      },
+      props: {
+        decorations(state) {
+          return this.getState(state);
+        }
+      }
+    });
+  }
+  var pluginInstalled = false;
+  function ensureFindPlugin() {
+    if (pluginInstalled) return;
+    const editor = getEditor();
+    if (!editor) return;
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const existingPlugin = findPluginKey.get(view.state);
+      if (existingPlugin !== void 0) {
+        pluginInstalled = true;
+        return;
+      }
+      const newState = view.state.reconfigure({
+        plugins: [...view.state.plugins, createFindPlugin()]
+      });
+      view.updateState(newState);
+      pluginInstalled = true;
+    } catch (e) {
+      console.error("Error installing find plugin:", e);
+    }
+  }
   function initFind() {
     const findInput = document.getElementById("find-input");
     const replaceInput = document.getElementById("replace-input");
@@ -32042,6 +32131,7 @@
         performSearch();
       });
     }
+    ensureFindPlugin();
   }
   function showFindBar(replaceMode = false) {
     const findBar = document.getElementById("find-bar");
@@ -32080,6 +32170,7 @@
       findInput.focus();
       findInput.select();
     }
+    ensureFindPlugin();
     if (currentQuery) {
       performSearch();
     }
@@ -32090,7 +32181,6 @@
     isVisible = false;
     findBar.classList.add("hidden");
     clearHighlights();
-    focus();
   }
   function toggleReplaceMode() {
     const replaceRow = document.getElementById("replace-row");
@@ -32106,10 +32196,10 @@
     }
   }
   function performSearch() {
-    clearHighlights();
     matches2 = [];
     currentMatchIndex = -1;
     if (!currentQuery) {
+      clearHighlights();
       updateMatchCount();
       return;
     }
@@ -32134,13 +32224,60 @@
         }
         return true;
       });
-      updateMatchCount();
       if (matches2.length > 0) {
         currentMatchIndex = 0;
-        selectMatch(currentMatchIndex);
+      }
+      updateDecorations();
+      updateMatchCount();
+      if (matches2.length > 0) {
+        scrollToMatch(currentMatchIndex);
       }
     } catch (e) {
       console.error("Search error:", e);
+    }
+  }
+  function updateDecorations() {
+    const editor = getEditor();
+    if (!editor) return;
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const { state } = view;
+      const decorations = [];
+      matches2.forEach((match, index2) => {
+        const className = index2 === currentMatchIndex ? "find-match-current" : "find-match";
+        decorations.push(
+          Decoration.inline(match.from, match.to, { class: className })
+        );
+      });
+      const decorationSet = DecorationSet.create(state.doc, decorations);
+      const tr = state.tr.setMeta(findPluginKey, { decorationSet });
+      view.dispatch(tr);
+    } catch (e) {
+      console.error("Error updating decorations:", e);
+    }
+  }
+  function scrollToMatch(index2) {
+    if (index2 < 0 || index2 >= matches2.length) return;
+    const match = matches2[index2];
+    const editor = getEditor();
+    if (!editor) return;
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const domPos = view.domAtPos(match.from);
+      if (!domPos || !domPos.node) return;
+      let targetElement = domPos.node;
+      if (targetElement.nodeType === Node.TEXT_NODE) {
+        targetElement = targetElement.parentElement;
+      }
+      if (targetElement && targetElement.scrollIntoView) {
+        targetElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest"
+        });
+      }
+    } catch (e) {
+      console.error("Error scrolling to match:", e);
     }
   }
   function findNext() {
@@ -32149,7 +32286,9 @@
       return;
     }
     currentMatchIndex = (currentMatchIndex + 1) % matches2.length;
-    selectMatch(currentMatchIndex);
+    updateDecorations();
+    updateMatchCount();
+    scrollToMatch(currentMatchIndex);
   }
   function findPrev() {
     if (matches2.length === 0) {
@@ -32157,24 +32296,9 @@
       return;
     }
     currentMatchIndex = (currentMatchIndex - 1 + matches2.length) % matches2.length;
-    selectMatch(currentMatchIndex);
-  }
-  function selectMatch(index2) {
-    if (index2 < 0 || index2 >= matches2.length) return;
-    const match = matches2[index2];
-    const editor = getEditor();
-    if (!editor) return;
-    try {
-      const view = editor.ctx.get(editorViewCtx);
-      const { state, dispatch } = view;
-      const tr = state.tr.setSelection(
-        TextSelection.create(state.doc, match.from, match.to)
-      );
-      dispatch(tr.scrollIntoView());
-      updateMatchCount();
-    } catch (e) {
-      console.error("Error selecting match:", e);
-    }
+    updateDecorations();
+    updateMatchCount();
+    scrollToMatch(currentMatchIndex);
   }
   function replace3() {
     if (matches2.length === 0 || currentMatchIndex < 0) return;
@@ -32220,12 +32344,23 @@
       dispatch(tr);
       matches2 = [];
       currentMatchIndex = -1;
+      clearHighlights();
       updateMatchCount();
     } catch (e) {
       console.error("Error replacing all:", e);
     }
   }
   function clearHighlights() {
+    const editor = getEditor();
+    if (!editor) return;
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const { state } = view;
+      const decorationSet = DecorationSet.empty;
+      const tr = state.tr.setMeta(findPluginKey, { decorationSet });
+      view.dispatch(tr);
+    } catch (e) {
+    }
   }
   function updateMatchCount() {
     const countEl = document.getElementById("find-count");

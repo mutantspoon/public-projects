@@ -1,10 +1,12 @@
 /**
  * Find & Replace functionality for Quill editor.
+ * Uses ProseMirror decorations for proper highlighting without stealing focus.
  */
 
-import { getEditor, focus } from './editor.js';
+import { getEditor } from './editor.js';
 import { editorViewCtx } from '@milkdown/core';
-import { TextSelection } from '@milkdown/prose/state';
+import { Decoration, DecorationSet } from '@milkdown/prose/view';
+import { Plugin, PluginKey } from '@milkdown/prose/state';
 
 // State
 let isVisible = false;
@@ -13,6 +15,66 @@ let matches = [];
 let currentMatchIndex = -1;
 let isReplaceMode = false;
 let caseSensitive = false;
+
+// Plugin key for find decorations
+const findPluginKey = new PluginKey('find');
+
+/**
+ * Create the find plugin that manages decorations.
+ */
+function createFindPlugin() {
+    return new Plugin({
+        key: findPluginKey,
+        state: {
+            init() {
+                return DecorationSet.empty;
+            },
+            apply(tr, decorationSet) {
+                // Get decorations from transaction metadata
+                const meta = tr.getMeta(findPluginKey);
+                if (meta) {
+                    return meta.decorationSet;
+                }
+                // Map decorations through document changes
+                return decorationSet.map(tr.mapping, tr.doc);
+            }
+        },
+        props: {
+            decorations(state) {
+                return this.getState(state);
+            }
+        }
+    });
+}
+
+// Install the plugin
+let pluginInstalled = false;
+function ensureFindPlugin() {
+    if (pluginInstalled) return;
+
+    const editor = getEditor();
+    if (!editor) return;
+
+    try {
+        const view = editor.ctx.get(editorViewCtx);
+
+        // Check if plugin already exists
+        const existingPlugin = findPluginKey.get(view.state);
+        if (existingPlugin !== undefined) {
+            pluginInstalled = true;
+            return;
+        }
+
+        // Add the plugin
+        const newState = view.state.reconfigure({
+            plugins: [...view.state.plugins, createFindPlugin()]
+        });
+        view.updateState(newState);
+        pluginInstalled = true;
+    } catch (e) {
+        console.error('Error installing find plugin:', e);
+    }
+}
 
 /**
  * Initialize the find bar.
@@ -91,6 +153,9 @@ export function initFind() {
             performSearch();
         });
     }
+
+    // Ensure find plugin is installed
+    ensureFindPlugin();
 }
 
 /**
@@ -143,6 +208,9 @@ export function showFindBar(replaceMode = false) {
         findInput.select();
     }
 
+    // Ensure plugin is installed
+    ensureFindPlugin();
+
     // Perform initial search if we have a query
     if (currentQuery) {
         performSearch();
@@ -161,9 +229,6 @@ export function hideFindBar() {
 
     // Clear highlights
     clearHighlights();
-
-    // Return focus to editor
-    focus();
 }
 
 /**
@@ -187,14 +252,14 @@ export function toggleReplaceMode() {
 }
 
 /**
- * Perform search and highlight matches.
+ * Perform search and apply decorations.
  */
 function performSearch() {
-    clearHighlights();
     matches = [];
     currentMatchIndex = -1;
 
     if (!currentQuery) {
+        clearHighlights();
         updateMatchCount();
         return;
     }
@@ -225,15 +290,87 @@ function performSearch() {
             return true;
         });
 
-        updateMatchCount();
-
         // Highlight first match
         if (matches.length > 0) {
             currentMatchIndex = 0;
-            selectMatch(currentMatchIndex);
+        }
+
+        updateDecorations();
+        updateMatchCount();
+
+        // Scroll to first match
+        if (matches.length > 0) {
+            scrollToMatch(currentMatchIndex);
         }
     } catch (e) {
         console.error('Search error:', e);
+    }
+}
+
+/**
+ * Update decorations for all matches.
+ */
+function updateDecorations() {
+    const editor = getEditor();
+    if (!editor) return;
+
+    try {
+        const view = editor.ctx.get(editorViewCtx);
+        const { state } = view;
+
+        const decorations = [];
+
+        // Add decorations for all matches
+        matches.forEach((match, index) => {
+            const className = index === currentMatchIndex ? 'find-match-current' : 'find-match';
+            decorations.push(
+                Decoration.inline(match.from, match.to, { class: className })
+            );
+        });
+
+        const decorationSet = DecorationSet.create(state.doc, decorations);
+
+        // Apply decorations via transaction
+        const tr = state.tr.setMeta(findPluginKey, { decorationSet });
+        view.dispatch(tr);
+    } catch (e) {
+        console.error('Error updating decorations:', e);
+    }
+}
+
+/**
+ * Scroll to a specific match without stealing focus.
+ */
+function scrollToMatch(index) {
+    if (index < 0 || index >= matches.length) return;
+
+    const match = matches[index];
+    const editor = getEditor();
+    if (!editor) return;
+
+    try {
+        const view = editor.ctx.get(editorViewCtx);
+
+        // Get the DOM node at the match position
+        const domPos = view.domAtPos(match.from);
+        if (!domPos || !domPos.node) return;
+
+        // Find the closest element node (text nodes can't scrollIntoView)
+        let targetElement = domPos.node;
+        if (targetElement.nodeType === Node.TEXT_NODE) {
+            targetElement = targetElement.parentElement;
+        }
+
+        if (targetElement && targetElement.scrollIntoView) {
+            // Scroll with smooth behavior and center alignment
+            targetElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+                inline: 'nearest'
+            });
+        }
+    } catch (e) {
+        console.error('Error scrolling to match:', e);
     }
 }
 
@@ -247,7 +384,9 @@ export function findNext() {
     }
 
     currentMatchIndex = (currentMatchIndex + 1) % matches.length;
-    selectMatch(currentMatchIndex);
+    updateDecorations();
+    updateMatchCount();
+    scrollToMatch(currentMatchIndex);
 }
 
 /**
@@ -260,35 +399,9 @@ export function findPrev() {
     }
 
     currentMatchIndex = (currentMatchIndex - 1 + matches.length) % matches.length;
-    selectMatch(currentMatchIndex);
-}
-
-/**
- * Select a specific match.
- */
-function selectMatch(index) {
-    if (index < 0 || index >= matches.length) return;
-
-    const match = matches[index];
-    const editor = getEditor();
-    if (!editor) return;
-
-    try {
-        const view = editor.ctx.get(editorViewCtx);
-        const { state, dispatch } = view;
-
-        // Create selection at match position
-        const tr = state.tr.setSelection(
-            TextSelection.create(state.doc, match.from, match.to)
-        );
-
-        // Scroll into view
-        dispatch(tr.scrollIntoView());
-
-        updateMatchCount();
-    } catch (e) {
-        console.error('Error selecting match:', e);
-    }
+    updateDecorations();
+    updateMatchCount();
+    scrollToMatch(currentMatchIndex);
 }
 
 /**
@@ -358,6 +471,7 @@ export function replaceAll() {
         // Clear matches
         matches = [];
         currentMatchIndex = -1;
+        clearHighlights();
         updateMatchCount();
     } catch (e) {
         console.error('Error replacing all:', e);
@@ -368,7 +482,20 @@ export function replaceAll() {
  * Clear all highlights.
  */
 function clearHighlights() {
-    // Highlights are handled via selection, nothing to clear
+    const editor = getEditor();
+    if (!editor) return;
+
+    try {
+        const view = editor.ctx.get(editorViewCtx);
+        const { state } = view;
+
+        // Clear decorations
+        const decorationSet = DecorationSet.empty;
+        const tr = state.tr.setMeta(findPluginKey, { decorationSet });
+        view.dispatch(tr);
+    } catch (e) {
+        // Ignore errors
+    }
 }
 
 /**
