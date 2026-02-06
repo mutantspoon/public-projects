@@ -2,6 +2,7 @@
 
 import os
 import platform
+import sys
 from pathlib import Path
 
 import webview
@@ -14,6 +15,9 @@ IS_MAC = platform.system() == "Darwin"
 
 def get_ui_path() -> Path:
     """Get the path to the UI directory."""
+    if getattr(sys, "frozen", False):
+        # Running as PyInstaller bundle
+        return Path(sys._MEIPASS) / "ui"
     return Path(__file__).parent.parent / "ui"
 
 
@@ -78,18 +82,59 @@ def on_resized(width: int, height: int, api: Api, settings: Settings):
     pass
 
 
-def start_app():
+def start_app(file_path: str | None = None):
     """Start the application."""
     settings = Settings()
     window, api = create_window(settings)
+    api.set_startup_file(file_path)
+
+    # Load startup file via evaluate_js after DOM is ready.
+    # This bypasses pywebviewready timing issues on Windows file association launches.
+    # Uses a timer to avoid blocking the UI thread during window operations.
+    def on_loaded():
+        if file_path:
+            import json
+            import threading
+
+            def load_file():
+                try:
+                    path_obj = Path(file_path)
+                    if path_obj.exists() and path_obj.stat().st_size <= 10 * 1024 * 1024:
+                        try:
+                            content = path_obj.read_text(encoding="utf-8")
+                        except UnicodeDecodeError:
+                            content = path_obj.read_text(encoding="latin-1")
+                        # Call JS to open the file in a tab
+                        js_code = f"window._quillOpenStartupFile({json.dumps(file_path)}, {json.dumps(content)})"
+                        window.evaluate_js(js_code)
+                except Exception:
+                    pass
+
+            # Small delay to let UI thread stabilize after load
+            threading.Timer(0.3, load_file).start()
+
+    window.events.loaded += on_loaded
 
     # Set up event handlers
     window.events.closing += lambda: on_closing(window, api, settings)
     window.events.moved += lambda x, y: on_moved(x, y, api, settings)
     window.events.resized += lambda w, h: on_resized(w, h, api, settings)
 
+    # Define explicit storage path in AppData for WebView2 cache.
+    # Prevents permission errors when app dir is read-only or locked
+    # (common during "Open with" or when installed in Program Files).
+    storage_path = None
+    app_data = os.getenv("APPDATA")
+    if app_data:
+        storage_path = os.path.join(app_data, "Quill", "webview")
+        try:
+            os.makedirs(storage_path, exist_ok=True)
+        except OSError:
+            storage_path = None
+
     # Start the webview with native GUI toolkit
     webview.start(
         debug=os.environ.get("QUILL_DEBUG", "").lower() == "true",
         private_mode=False,  # Allow localStorage for settings
+        storage_path=storage_path,
     )

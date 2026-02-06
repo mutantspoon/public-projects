@@ -35,3 +35,4 @@ Desktop.ini
 
 # Quill specific
 *.log
+*.spec

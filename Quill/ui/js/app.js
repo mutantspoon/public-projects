@@ -5,7 +5,7 @@
 
 import { initEditor, getContent, getWordCount, focus } from './editor.js';
 import { initToolbar, handleSave, applyTheme, handleSourceToggle, isInSourceMode, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks } from './toolbar.js';
-import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile } from './bridge.js';
+import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile } from './bridge.js';
 import { initTabs, createTab, closeActiveTab, getActiveTab, setActiveTabModified, setActiveTabPath, openFileInTab, newTab, nextTab, prevTab, getAllTabs } from './tabs.js';
 import { initFind, showFindBar, hideFindBar, findNext, findPrev, isFindVisible } from './find.js';
 import { showToast, showSuccess, showError, showInfo } from './toast.js';
@@ -94,6 +94,9 @@ async function init() {
         getTabs: getAllTabs,
     });
 
+    // Expose tab functions globally for Python evaluate_js calls
+    window._quillTabs = { openFileInTab };
+
     // Initialize find & replace
     initFind();
 
@@ -118,6 +121,17 @@ async function init() {
     // Initial status update
     updateWordCount();
     updatePosition(1, 1);
+
+    // Check if a file was passed via command-line (e.g. "Open with" file association)
+    try {
+        const startupFile = await getStartupFile();
+        if (startupFile) {
+            ignoreNextChanges = 2;
+            openFileInTab(startupFile.path, startupFile.content);
+        }
+    } catch (e) {
+        // Ignore startup file errors
+    }
 
     // Focus the editor
     setTimeout(() => focus(), 100);
@@ -675,6 +689,26 @@ function setupTooltips() {
         }
     });
 }
+
+// Global function for Python to call via evaluate_js for startup file loading.
+// This bypasses pywebviewready timing issues on Windows file association launches.
+window._quillOpenStartupFile = (filePath, content) => {
+    // Wait a bit for editor to be ready, then open the file
+    const tryOpen = () => {
+        try {
+            const { openFileInTab } = window._quillTabs || {};
+            if (openFileInTab) {
+                openFileInTab(filePath, content);
+            } else {
+                // Editor not ready yet, retry
+                setTimeout(tryOpen, 100);
+            }
+        } catch (e) {
+            setTimeout(tryOpen, 100);
+        }
+    };
+    tryOpen();
+};
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {

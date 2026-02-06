@@ -31228,17 +31228,31 @@
         resolve(pywebview.api);
         return;
       }
-      const check = setInterval(() => {
+      const onReady = () => {
+        window.removeEventListener("pywebviewready", onReady);
+        clearTimeout(timeout);
+        clearInterval(poll);
         if (isWebView()) {
-          clearInterval(check);
+          resolve(pywebview.api);
+        } else {
+          resolve(createMockApi());
+        }
+      };
+      window.addEventListener("pywebviewready", onReady);
+      const poll = setInterval(() => {
+        if (isWebView()) {
+          clearInterval(poll);
+          clearTimeout(timeout);
+          window.removeEventListener("pywebviewready", onReady);
           resolve(pywebview.api);
         }
       }, 50);
-      setTimeout(() => {
-        clearInterval(check);
+      const timeout = setTimeout(() => {
+        clearInterval(poll);
+        window.removeEventListener("pywebviewready", onReady);
         console.warn("PyWebView API not available, using mock API");
         resolve(createMockApi());
-      }, 5e3);
+      }, 1e4);
     });
   }
   function createMockApi() {
@@ -31305,7 +31319,8 @@
       toggle_word_wrap: async () => {
         const mockWordWrap = true;
         return { success: true, word_wrap: !mockWordWrap };
-      }
+      },
+      get_startup_file: async () => null
     };
   }
   var apiInstance = null;
@@ -31358,6 +31373,10 @@
   async function setCurrentFile(filePath) {
     const api = await getApi();
     return api.set_current_file(filePath);
+  }
+  async function getStartupFile() {
+    const api = await getApi();
+    return api.get_startup_file();
   }
 
   // js/toast.js
@@ -32584,6 +32603,7 @@
       getContent: getSourceContent,
       getTabs: getAllTabs
     });
+    window._quillTabs = { openFileInTab };
     initFind();
     initOutline();
     setupViewModeButtons();
@@ -32593,6 +32613,14 @@
     setupKeyboardShortcuts();
     updateWordCount();
     updatePosition(1, 1);
+    try {
+      const startupFile = await getStartupFile();
+      if (startupFile) {
+        ignoreNextChanges = 2;
+        openFileInTab(startupFile.path, startupFile.content);
+      }
+    } catch (e) {
+    }
     setTimeout(() => focus(), 100);
   }
   function handleContentChange(markdown) {
@@ -33003,6 +33031,21 @@
       }
     });
   }
+  window._quillOpenStartupFile = (filePath, content3) => {
+    const tryOpen = () => {
+      try {
+        const { openFileInTab: openFileInTab2 } = window._quillTabs || {};
+        if (openFileInTab2) {
+          openFileInTab2(filePath, content3);
+        } else {
+          setTimeout(tryOpen, 100);
+        }
+      } catch (e) {
+        setTimeout(tryOpen, 100);
+      }
+    };
+    tryOpen();
+  };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
       setupTooltips();

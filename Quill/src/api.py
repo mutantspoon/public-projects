@@ -1,11 +1,14 @@
 """Python API exposed to JavaScript via PyWebView."""
 
+import logging
 import platform
 from pathlib import Path
 
 import webview
 
 from .settings import Settings
+
+logger = logging.getLogger(__name__)
 
 IS_MAC = platform.system() == "Darwin"
 MAX_RECENT_FILES = 10
@@ -19,10 +22,51 @@ class Api:
         self.window = None
         self._current_file = None
         self._modified = False
+        self._startup_file = None
 
     def set_window(self, window):
         """Set the webview window reference."""
         self.window = window
+
+    def set_startup_file(self, file_path: str | None):
+        """Set a file to open on startup (from command-line argument)."""
+        self._startup_file = file_path
+
+    def get_startup_file(self):
+        """Return startup file content if one was provided via command-line.
+
+        Called by JS after editor initialization. Returns the file content
+        once, then clears the startup file so subsequent calls return None.
+        """
+        if not self._startup_file:
+            return None
+
+        file_path = self._startup_file
+        self._startup_file = None  # Only serve once
+
+        try:
+            path = Path(file_path)
+            if not path.exists():
+                return None
+
+            file_size = path.stat().st_size
+            if file_size > 10 * 1024 * 1024:  # 10MB
+                return None
+
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                with open(file_path, "r", encoding="latin-1") as f:
+                    content = f.read()
+
+            self._current_file = file_path
+            self._modified = False
+            self._update_title()
+            self.add_recent_file(file_path)
+            return {"content": content, "path": file_path}
+        except Exception:
+            return None
 
     # ─── Recent Files ────────────────────────────────────────────────────
 

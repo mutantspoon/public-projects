@@ -4,6 +4,7 @@
 A Typora-style markdown editor using PyWebView and Milkdown.
 """
 
+import os
 import platform
 import sys
 
@@ -17,8 +18,18 @@ if platform.system() == "Windows":
 
 
 def main():
+    # Fix CWD for "Open with" file association launches.
+    # Windows sets CWD to the file's directory, but pywebview needs
+    # the app directory to find its dependencies.
+    if getattr(sys, "frozen", False):
+        os.chdir(os.path.dirname(sys.executable))
+
     from src.window import start_app
-    start_app()
+
+    # Accept a file path as command-line argument (used by file associations)
+    file_path = sys.argv[1] if len(sys.argv) > 1 else None
+
+    start_app(file_path=file_path)
 
 
 if __name__ == "__main__":

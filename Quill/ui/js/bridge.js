@@ -9,25 +9,42 @@ const isWebView = () => typeof pywebview !== 'undefined' && pywebview.api;
 // Wait for PyWebView API to be ready
 export function waitForApi() {
     return new Promise((resolve) => {
+        // Already available
         if (isWebView()) {
             resolve(pywebview.api);
             return;
         }
 
-        // Poll for API availability
-        const check = setInterval(() => {
+        // Listen for PyWebView's ready event (official method)
+        const onReady = () => {
+            window.removeEventListener('pywebviewready', onReady);
+            clearTimeout(timeout);
+            clearInterval(poll);
             if (isWebView()) {
-                clearInterval(check);
+                resolve(pywebview.api);
+            } else {
+                resolve(createMockApi());
+            }
+        };
+        window.addEventListener('pywebviewready', onReady);
+
+        // Also poll as fallback (some pywebview versions)
+        const poll = setInterval(() => {
+            if (isWebView()) {
+                clearInterval(poll);
+                clearTimeout(timeout);
+                window.removeEventListener('pywebviewready', onReady);
                 resolve(pywebview.api);
             }
         }, 50);
 
-        // Timeout after 5 seconds (fallback to mock API for development)
-        setTimeout(() => {
-            clearInterval(check);
+        // Timeout after 10 seconds (fallback to mock API for development)
+        const timeout = setTimeout(() => {
+            clearInterval(poll);
+            window.removeEventListener('pywebviewready', onReady);
             console.warn('PyWebView API not available, using mock API');
             resolve(createMockApi());
-        }, 5000);
+        }, 10000);
     });
 }
 
@@ -112,6 +129,8 @@ function createMockApi() {
             const mockWordWrap = true; // Mock state
             return { success: true, word_wrap: !mockWordWrap };
         },
+
+        get_startup_file: async () => null,
     };
 }
 
@@ -194,4 +213,9 @@ export async function clearRecentFiles() {
 export async function setCurrentFile(filePath) {
     const api = await getApi();
     return api.set_current_file(filePath);
+}
+
+export async function getStartupFile() {
+    const api = await getApi();
+    return api.get_startup_file();
 }

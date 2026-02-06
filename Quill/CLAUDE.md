@@ -124,3 +124,22 @@ class Api:
         # Show native dialog, return file content
         return {"success": True, "content": "..."}
 ```
+
+## Building Quill.exe (PyInstaller)
+
+```bash
+cd Quill
+venv\Scripts\pyinstaller -y --onedir --windowed --name Quill --add-data "ui;ui" --add-data "src;src" main.py
+```
+
+Output: `dist/Quill/Quill.exe`. PyInstaller is installed in the venv (not in requirements.txt).
+
+## File Association ("Open with" for .md files)
+
+Quill supports opening `.md` files via Windows "Open with". Key implementation details:
+
+1. **CWD Fix**: `main.py` sets `os.chdir()` to the exe directory when frozen, because Windows sets CWD to the file's directory during "Open with", breaking pywebview's DLL loading.
+
+2. **WebView2 Storage**: `window.py` sets `storage_path` to `%APPDATA%/Quill/webview` to avoid permission issues with WebView2 cache.
+
+3. **File Loading**: Uses Python's `evaluate_js()` on the `loaded` event to call JS directly, bypassing `pywebviewready` timing issues. A 300ms delay prevents UI thread conflicts during window operations.
