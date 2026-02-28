@@ -137,10 +137,16 @@ Output: `dist/Quill/Quill.exe`. PyInstaller is installed in the venv (not in req
 
 ## File Association ("Open with" for .md files)
 
-Quill supports opening `.md` files via Windows "Open with". Key implementation details:
+### macOS
+Handled via `_setup_macos_open_handler()` in `window.py`, which patches PyWebView's AppDelegate to implement `application:openFile:`. Finder calls this instead of passing the file via argv.
+
+### Windows
+Run `register.bat` (double-click it) once to set up the file association. It writes per-user registry keys (`HKCU\Software\Classes`) pointing to `quill-open.vbs`, which launches `pythonw.exe main.py "<file>"` silently (no console window). No admin required.
+
+Key implementation details:
 
 1. **CWD Fix**: `main.py` sets `os.chdir()` to the exe directory when frozen, because Windows sets CWD to the file's directory during "Open with", breaking pywebview's DLL loading.
 
 2. **WebView2 Storage**: `window.py` sets `storage_path` to `%APPDATA%/Quill/webview` to avoid permission issues with WebView2 cache.
 
-3. **File Loading**: Uses Python's `evaluate_js()` on the `loaded` event to call JS directly, bypassing `pywebviewready` timing issues. A 300ms delay prevents UI thread conflicts during window operations.
+3. **File Loading**: JS calls `api.get_startup_file()` via the bridge after the editor initializes. Python stores the path in `_startup_file`; JS retrieves it once (clearing it) and opens it in a tab. The bridge polling in `bridge.js` handles pywebviewready timing — no fixed-delay evaluate_js needed.

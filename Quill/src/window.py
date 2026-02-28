@@ -206,27 +206,6 @@ def start_app(file_path: str | None = None):
     if IS_MAC:
         _setup_macos_open_handler(window)
 
-    def on_loaded():
-        # Windows "Open with" path: file passed via sys.argv and forwarded by
-        # the launch script. Small delay avoids blocking the UI thread.
-        if file_path:
-            def load_file():
-                try:
-                    path_obj = Path(file_path)
-                    if path_obj.exists() and path_obj.stat().st_size <= 10 * 1024 * 1024:
-                        try:
-                            content = path_obj.read_text(encoding="utf-8")
-                        except UnicodeDecodeError:
-                            content = path_obj.read_text(encoding="latin-1")
-                        js_code = f"window._quillOpenStartupFile({json.dumps(file_path)}, {json.dumps(content)})"
-                        window.evaluate_js(js_code)
-                except Exception:
-                    pass
-
-            threading.Timer(0.3, load_file).start()
-
-    window.events.loaded += on_loaded
-
     # Set up event handlers
     window.events.closing += lambda: on_closing(window, api, settings)
     window.events.moved += lambda x, y: on_moved(x, y, api, settings)
