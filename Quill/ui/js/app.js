@@ -6,7 +6,7 @@
 import { initEditor, getContent, getWordCount, focus } from './editor.js';
 import { initToolbar, handleSave, applyTheme, handleSourceToggle, isInSourceMode, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks } from './toolbar.js';
 import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile } from './bridge.js';
-import { initTabs, createTab, closeActiveTab, getActiveTab, setActiveTabModified, setActiveTabPath, openFileInTab, newTab, nextTab, prevTab, getAllTabs } from './tabs.js';
+import { initTabs, createTab, closeActiveTab, getActiveTab, setActiveTabModified, setActiveTabPath, openFileInTab, newTab, nextTab, prevTab, getAllTabs, getTabByPath, switchToTab, hasDirtyTabs, handleAppClose } from './tabs.js';
 import { initFind, showFindBar, hideFindBar, findNext, findPrev, isFindVisible } from './find.js';
 import { showToast, showSuccess, showError, showInfo } from './toast.js';
 import { initAutosave, clearDrafts } from './autosave.js';
@@ -109,8 +109,8 @@ async function init() {
     // Set up font size buttons
     setupFontSizeControls();
 
-    // Set up recent files dropdown
-    setupRecentFiles();
+    // Set up recent files panel
+    setupRecentPanel();
 
     // Set up drag and drop
     setupDragAndDrop();
@@ -181,8 +181,8 @@ function handleTabChange(tab) {
  */
 async function updateWindowTitle(tab) {
     const api = await getApi();
-    if (api.set_current_file && tab.path) {
-        await api.set_current_file(tab.path);
+    if (api.set_current_file) {
+        await api.set_current_file(tab.path);  // Pass null too - clears Python state
     }
 }
 
@@ -296,96 +296,131 @@ function setupViewModeButtons() {
     }
 }
 
-// ─── Recent Files ───────────────────────────────────────────────────────
+// ─── Recent Files Panel ─────────────────────────────────────────────────
 
-async function setupRecentFiles() {
-    const dropdown = document.getElementById('recent-dropdown');
-    const btn = document.getElementById('btn-recent');
-    const menu = document.getElementById('recent-menu');
+let recentPanelVisible = false;
+let selectedRecentItem = null;
 
-    if (!dropdown || !btn || !menu) return;
+function setupRecentPanel() {
+    const toggleBtn = document.getElementById('btn-recent-panel');
+    const closeBtn = document.getElementById('recent-close');
 
-    // Toggle dropdown on click
-    btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-
-        // Close other dropdowns
-        document.querySelectorAll('.dropdown.open').forEach(d => {
-            if (d !== dropdown) d.classList.remove('open');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            toggleRecentPanel();
         });
+    }
 
-        // Toggle this dropdown
-        const isOpen = dropdown.classList.toggle('open');
-
-        if (isOpen) {
-            await populateRecentFiles();
-        }
-    });
-
-    // Close dropdown when clicking outside
-    document.addEventListener('click', () => {
-        dropdown.classList.remove('open');
-    });
-
-    // Prevent dropdown menu clicks from closing
-    menu.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            hideRecentPanel();
+        });
+    }
 }
 
-async function populateRecentFiles() {
-    const menu = document.getElementById('recent-menu');
-    if (!menu) return;
+function toggleRecentPanel() {
+    recentPanelVisible = !recentPanelVisible;
 
-    menu.innerHTML = '';
+    const panel = document.getElementById('recent-panel');
+    const toggleBtn = document.getElementById('btn-recent-panel');
+
+    if (recentPanelVisible) {
+        panel?.classList.remove('hidden');
+        toggleBtn?.classList.add('active');
+        populateRecentPanel();
+    } else {
+        panel?.classList.add('hidden');
+        toggleBtn?.classList.remove('active');
+        selectedRecentItem = null;
+    }
+}
+
+function hideRecentPanel() {
+    if (recentPanelVisible) {
+        toggleRecentPanel();
+    }
+}
+
+async function populateRecentPanel() {
+    const content = document.getElementById('recent-content');
+    const panel = document.getElementById('recent-panel');
+    if (!content || !panel) return;
+
+    content.innerHTML = '';
+    selectedRecentItem = null;
+
+    // Remove any existing clear button
+    const existingClear = panel.querySelector('.recent-clear');
+    if (existingClear) {
+        existingClear.remove();
+    }
 
     try {
         const recentFiles = await getRecentFiles();
 
         if (!recentFiles || recentFiles.length === 0) {
-            const emptyItem = document.createElement('div');
-            emptyItem.className = 'dropdown-item empty';
-            emptyItem.textContent = 'No recent files';
-            menu.appendChild(emptyItem);
+            const emptyEl = document.createElement('div');
+            emptyEl.className = 'recent-empty';
+            emptyEl.textContent = 'No recent files';
+            content.appendChild(emptyEl);
         } else {
             recentFiles.forEach(filePath => {
-                const item = document.createElement('button');
-                item.className = 'dropdown-item';
-                item.textContent = filePath.split('/').pop(); // Just filename
-                item.title = filePath; // Full path on hover
-                item.addEventListener('click', async () => {
-                    await handleOpenRecent(filePath);
-                    document.getElementById('recent-dropdown').classList.remove('open');
+                const item = document.createElement('div');
+                item.className = 'recent-item';
+                // Extract filename, handling both / and \ separators
+                const parts = filePath.replace(/\\/g, '/').split('/');
+                item.textContent = parts[parts.length - 1];
+                item.title = filePath;
+                item.dataset.path = filePath;
+
+                // Single click: highlight
+                item.addEventListener('click', () => {
+                    // Remove previous selection
+                    content.querySelectorAll('.recent-item.selected').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    item.classList.add('selected');
+                    selectedRecentItem = filePath;
                 });
-                menu.appendChild(item);
+
+                // Double click: open in tab (or switch to it)
+                item.addEventListener('dblclick', async () => {
+                    await handleOpenRecentPanelItem(filePath);
+                });
+
+                content.appendChild(item);
             });
 
-            // Add divider and clear option
-            const divider = document.createElement('div');
-            divider.className = 'dropdown-divider';
-            menu.appendChild(divider);
-
-            const clearItem = document.createElement('button');
-            clearItem.className = 'dropdown-item';
-            clearItem.textContent = 'Clear Recent Files';
-            clearItem.addEventListener('click', async () => {
+            // Add clear button at the bottom of the panel
+            const clearBtn = document.createElement('button');
+            clearBtn.className = 'recent-clear';
+            clearBtn.textContent = 'Clear Recent';
+            clearBtn.addEventListener('click', async () => {
                 await clearRecentFiles();
-                document.getElementById('recent-dropdown').classList.remove('open');
+                populateRecentPanel();
             });
-            menu.appendChild(clearItem);
+            panel.appendChild(clearBtn);
         }
     } catch (e) {
-        const errorItem = document.createElement('div');
-        errorItem.className = 'dropdown-item empty';
-        errorItem.textContent = 'Could not load recent files';
-        menu.appendChild(errorItem);
+        const errorEl = document.createElement('div');
+        errorEl.className = 'recent-empty';
+        errorEl.textContent = 'Could not load recent files';
+        content.appendChild(errorEl);
     }
 }
 
-async function handleOpenRecent(filePath) {
+async function handleOpenRecentPanelItem(filePath) {
+    // Check if already open in a tab
+    const existingTab = getTabByPath(filePath);
+    if (existingTab) {
+        switchToTab(existingTab.id);
+        focus();
+        return;
+    }
+
+    // Open via the bridge
     const result = await openRecentFile(filePath);
     if (result.success) {
-        // Open in a new tab
         openFileInTab(result.path, result.content);
     } else if (result.error) {
         showError(result.error);
@@ -534,6 +569,12 @@ function setupKeyboardShortcuts() {
                 e.preventDefault();
                 e.stopPropagation();
                 findPrev();
+                return;
+            }
+            if ((key === '8' || key === '*') && !isInSourceMode()) {
+                e.preventDefault();
+                e.stopPropagation();
+                document.getElementById('btn-bullet').click();
                 return;
             }
         }
@@ -688,20 +729,69 @@ function setupTooltips() {
             el.title = tooltip;
         }
     });
+
+    // Fix zoom button tooltips (no data-tooltip so handled separately)
+    const zoomIn = document.getElementById('btn-zoom-in');
+    const zoomOut = document.getElementById('btn-zoom-out');
+    if (zoomIn) zoomIn.title = `Zoom In (${mod}+)`;
+    if (zoomOut) zoomOut.title = `Zoom Out (${mod}-)`;
 }
 
+// Global hooks for Python to call via evaluate_js for app close handling.
+window._quillHasDirtyTabs = () => {
+    // Sync active tab's modified state before checking
+    const activeTab = getActiveTab();
+    if (activeTab) {
+        activeTab.modified = getIsModified();
+    }
+    return hasDirtyTabs();
+};
+
+window._quillHandleAppClose = async () => {
+    const okToClose = await handleAppClose();
+    if (okToClose) {
+        const api = await getApi();
+        if (api.force_close) {
+            // Don't await — Python will destroy the window on a timer and the
+            // window may be gone before a response arrives. Awaiting here would
+            // deadlock: the bridge is still pending when destroy() fires.
+            api.force_close();
+        }
+    }
+};
+
 // Global function for Python to call via evaluate_js for startup file loading.
-// This bypasses pywebviewready timing issues on Windows file association launches.
+// On a fresh launch, replaces the initial empty Untitled tab so the user sees
+// only the opened file. If the app is already running (_startupComplete), opens
+// in a new tab as normal.
 window._quillOpenStartupFile = (filePath, content) => {
-    // Wait a bit for editor to be ready, then open the file
     const tryOpen = () => {
         try {
             const { openFileInTab } = window._quillTabs || {};
-            if (openFileInTab) {
-                openFileInTab(filePath, content);
-            } else {
-                // Editor not ready yet, retry
+            if (!openFileInTab) {
                 setTimeout(tryOpen, 100);
+                return;
+            }
+
+            // Replace the initial empty tab only during startup (before init()
+            // finishes). After that, always open in a new tab.
+            const allTabs = getAllTabs();
+            const activeTab = getActiveTab();
+            const currentContent = getSourceContent();
+            const isInitialEmptyTab =
+                allTabs.length === 1 &&
+                activeTab &&
+                !activeTab.path &&
+                !activeTab.modified &&
+                (!currentContent || currentContent.trim() === '');
+
+            if (isInitialEmptyTab) {
+                ignoreNextChanges = 2;
+                setSourceContent(content);
+                setActiveTabPath(filePath);
+                setCurrentFile(filePath);  // sync Python title state
+            } else {
+                openFileInTab(filePath, content);
             }
         } catch (e) {
             setTimeout(tryOpen, 100);

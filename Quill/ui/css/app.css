@@ -26,7 +26,7 @@ body {
 .toolbar {
     display: flex;
     align-items: center;
-    height: 32px;
+    height: 36px;
     padding: 0 10px;
     background-color: var(--toolbar);
     border-bottom: 1px solid var(--border);
@@ -34,11 +34,6 @@ body {
     gap: 6px;
     -webkit-app-region: drag;
     user-select: none;
-}
-
-.toolbar-row2 {
-    border-bottom: 1px solid var(--border);
-    background-color: var(--toolbar);
 }
 
 .toolbar-group {
@@ -78,8 +73,23 @@ body {
     background-color: var(--selection);
 }
 
+.toolbar-btn.icon-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.toolbar-btn.icon-btn svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
 .toolbar-btn.format-btn {
-    width: 24px;
+    width: 28px;
     padding: 0;
     font-size: 12px;
 }
@@ -110,9 +120,9 @@ body {
 
 .toolbar-separator {
     width: 1px;
-    height: 20px;
+    height: 22px;
     background-color: var(--border);
-    margin: 0 8px;
+    margin: 0 4px;
 }
 
 .toolbar-spacer {
@@ -140,8 +150,13 @@ body {
 }
 
 .dropdown-toggle.toolbar-btn {
-    padding: 0 6px;
+    padding: 0;
     min-width: auto;
+}
+
+.dropdown-toggle.icon-btn {
+    width: 28px;
+    height: 28px;
 }
 
 .dropdown-menu {
@@ -149,7 +164,7 @@ body {
     position: absolute;
     top: 100%;
     left: 0;
-    min-width: 200px;
+    min-width: 140px;
     max-height: 300px;
     overflow-y: auto;
     background: rgba(45, 45, 45, 0.92);
@@ -161,6 +176,7 @@ body {
                 0 0 1px rgba(0, 0, 0, 0.1);
     z-index: 1000;
     margin-top: 6px;
+    padding: 4px 0;
 }
 
 [data-theme='light'] .dropdown-menu {
@@ -560,6 +576,123 @@ body {
     text-align: center;
 }
 
+/* ─── Recent Files Panel ────────────────────────────────────────────── */
+
+.recent-panel {
+    width: 240px;
+    min-width: 200px;
+    max-width: 320px;
+    background-color: var(--toolbar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease, opacity 0.2s ease;
+}
+
+.recent-panel.hidden {
+    width: 0;
+    min-width: 0;
+    opacity: 0;
+    border-right: none;
+    overflow: hidden;
+}
+
+.recent-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.recent-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.recent-close {
+    background: none;
+    border: none;
+    color: var(--text);
+    opacity: 0.5;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0;
+    line-height: 1;
+}
+
+.recent-close:hover {
+    opacity: 1;
+}
+
+.recent-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.recent-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background-color 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+}
+
+.recent-item:hover {
+    background-color: var(--accent-subtle);
+}
+
+.recent-item.selected {
+    background-color: var(--selection);
+}
+
+.recent-empty {
+    padding: 16px 12px;
+    font-size: 12px;
+    color: var(--text);
+    opacity: 0.5;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.recent-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text);
+    opacity: 0.6;
+    cursor: pointer;
+    border: none;
+    border-top: 1px solid var(--border);
+    background: none;
+    width: 100%;
+    transition: opacity 0.1s, background-color 0.1s;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.recent-clear:hover {
+    opacity: 1;
+    background-color: var(--accent-subtle);
+}
+
 /* ─── Editor Container ───────────────────────────────────────────────── */
 
 .editor-container {
@@ -573,7 +706,7 @@ body {
     height: 100%;
     flex: 1;
     overflow-y: auto;
-    padding: 32px clamp(24px, 8vw, 80px);
+    padding: 40px clamp(24px, 8vw, 80px);
     cursor: text;
 }
 

@@ -6,6 +6,7 @@
 import { getContent, setContent, focus } from './editor.js';
 import { setModified } from './bridge.js';
 import { showSaveDialog } from './dialog.js';
+import { showInfo } from './toast.js';
 
 // Tab state
 let tabs = [];
@@ -52,7 +53,7 @@ export function createTab(options = {}) {
         path,
         content,
         modified,
-        filename: filename || (path ? path.split('/').pop() : 'Untitled'),
+        filename: filename || (path ? path.replace(/\\/g, '/').split('/').pop() : 'Untitled'),
     };
 
     tabs.push(tab);
@@ -210,7 +211,7 @@ export function setActiveTabPath(path, filename = null) {
     const tab = getActiveTab();
     if (tab) {
         tab.path = path;
-        tab.filename = filename || (path ? path.split('/').pop() : 'Untitled');
+        tab.filename = filename || (path ? path.replace(/\\/g, '/').split('/').pop() : 'Untitled');
         renderTabs();
     }
 }
@@ -374,7 +375,7 @@ export function restoreTabsFromDrafts(drafts) {
             path: draft.path,
             content: draft.content || '',
             modified: draft.modified || false,
-            filename: draft.filename || (draft.path ? draft.path.split('/').pop() : 'Untitled'),
+            filename: draft.filename || (draft.path ? draft.path.replace(/\\/g, '/').split('/').pop() : 'Untitled'),
         };
         tabs.push(tab);
 
@@ -390,6 +391,55 @@ export function restoreTabsFromDrafts(drafts) {
 }
 
 /**
- * Check for dirty tabs and prompt to save before app close.
+ * Check if any tabs have unsaved changes (synchronous).
+ */
+export function hasDirtyTabs() {
+    return tabs.some(t => t.modified);
+}
+
+/**
+ * Handle app close - prompt to save dirty tabs.
  * @returns {Promise<boolean>} - true if ok to close, false if cancelled
  */
+export async function handleAppClose() {
+    // Sync active tab state
+    if (activeTabId !== null) {
+        const activeTab = tabs.find(t => t.id === activeTabId);
+        if (activeTab) {
+            if (onContentRequest) {
+                activeTab.content = onContentRequest();
+            }
+            activeTab.modified = getIsModifiedCallback();
+        }
+    }
+
+    const dirtyTabs = tabs.filter(t => t.modified);
+    if (dirtyTabs.length === 0) return true;
+
+    // Show save dialog
+    const label = dirtyTabs.length === 1
+        ? dirtyTabs[0].filename
+        : `${dirtyTabs.length} unsaved files`;
+    const result = await showSaveDialog(label);
+
+    if (result === 'cancel') return false;
+
+    if (result === 'save') {
+        for (const tab of dirtyTabs) {
+            // Untitled files (no path) require a native Save As dialog, which
+            // deadlocks on macOS when triggered from the close event chain.
+            // Cancel the close and switch to the tab so the user can save first.
+            if (!tab.path) {
+                switchToTab(tab.id);
+                const mod = navigator.platform.toUpperCase().includes('MAC') ? '⌘S' : 'Ctrl+S';
+                showInfo(`Save the file first (${mod}), then close again.`);
+                return false;
+            }
+            switchToTab(tab.id);
+            const saved = await saveCallback();
+            if (!saved) return false;
+        }
+    }
+
+    return true;
+}

@@ -55,7 +55,7 @@ class Settings:
         config_file = get_config_file()
         if config_file.exists():
             try:
-                with open(config_file, "r") as f:
+                with open(config_file, "r", encoding="utf-8") as f:
                     saved = json.load(f)
                     self._settings.update(saved)
                     logger.info(f"Settings loaded from {config_file}")
@@ -68,7 +68,7 @@ class Settings:
         """Save settings to disk."""
         config_file = get_config_file()
         try:
-            with open(config_file, "w") as f:
+            with open(config_file, "w", encoding="utf-8") as f:
                 json.dump(self._settings, f, indent=2)
         except IOError as e:
             logger.error(f"Could not save settings: {e}")

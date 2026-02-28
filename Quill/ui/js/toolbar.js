@@ -70,9 +70,9 @@ export function initToolbar(callbacks = {}) {
     // Insert
     document.getElementById('btn-link').addEventListener('click', handleLink);
     document.getElementById('btn-image').addEventListener('click', handleImage);
-    document.getElementById('btn-h1').addEventListener('click', () => handleHeading(1));
-    document.getElementById('btn-h2').addEventListener('click', () => handleHeading(2));
-    document.getElementById('btn-h3').addEventListener('click', () => handleHeading(3));
+    document.getElementById('btn-h1').addEventListener('click', () => { handleHeading(1); closeHeadingDropdown(); });
+    document.getElementById('btn-h2').addEventListener('click', () => { handleHeading(2); closeHeadingDropdown(); });
+    document.getElementById('btn-h3').addEventListener('click', () => { handleHeading(3); closeHeadingDropdown(); });
     document.getElementById('btn-bullet').addEventListener('click', handleBulletList);
     document.getElementById('btn-numlist').addEventListener('click', handleNumberedList);
     document.getElementById('btn-task').addEventListener('click', handleTaskList);
@@ -83,11 +83,54 @@ export function initToolbar(callbacks = {}) {
     // Source mode toggle
     document.getElementById('btn-source').addEventListener('click', handleSourceToggle);
 
+    // Heading dropdown toggle
+    setupHeadingDropdown();
+
     // Theme
     document.getElementById('btn-theme').addEventListener('click', handleThemeToggle);
 
     // Source editor change handler
     document.getElementById('source-editor').addEventListener('input', handleSourceInput);
+}
+
+// ─── Heading Dropdown ────────────────────────────────────────────────────
+
+function setupHeadingDropdown() {
+    const dropdown = document.getElementById('heading-dropdown');
+    const btn = document.getElementById('btn-heading');
+    const menu = document.getElementById('heading-menu');
+
+    if (!dropdown || !btn || !menu) return;
+
+    // Toggle dropdown on click
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+
+        // Close other dropdowns
+        document.querySelectorAll('.dropdown.open').forEach(d => {
+            if (d !== dropdown) d.classList.remove('open');
+        });
+
+        // Toggle this dropdown
+        dropdown.classList.toggle('open');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', () => {
+        dropdown.classList.remove('open');
+    });
+
+    // Prevent dropdown menu clicks from closing prematurely
+    menu.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+}
+
+function closeHeadingDropdown() {
+    const dropdown = document.getElementById('heading-dropdown');
+    if (dropdown) {
+        dropdown.classList.remove('open');
+    }
 }
 
 // ─── Source Mode ────────────────────────────────────────────────────────
@@ -108,7 +151,6 @@ export function handleSourceToggle() {
         editor.classList.add('hidden');
         sourceEditor.classList.remove('hidden');
         sourceBtn.classList.add('active');
-        sourceBtn.textContent = 'WYSIWYG';
         statusMode.style.display = 'inline';
         statusModeSep.style.display = 'inline';
         sourceEditor.focus();
@@ -119,7 +161,6 @@ export function handleSourceToggle() {
         sourceEditor.classList.add('hidden');
         editor.classList.remove('hidden');
         sourceBtn.classList.remove('active');
-        sourceBtn.textContent = 'Source';
         statusMode.style.display = 'none';
         statusModeSep.style.display = 'none';
         focus();
@@ -216,7 +257,7 @@ export async function handleSave() {
             setActiveTabModifiedCallback(false);
         }
 
-        showSuccess(`Saved: ${result.path.split('/').pop()}`);
+        showSuccess(`Saved: ${result.path.replace(/\\/g, '/').split('/').pop()}`);
 
         if (isSourceMode) {
             document.getElementById('source-editor').focus();

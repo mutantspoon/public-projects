@@ -2,6 +2,7 @@
 
 import logging
 import platform
+import threading
 from pathlib import Path
 
 import webview
@@ -23,6 +24,7 @@ class Api:
         self._current_file = None
         self._modified = False
         self._startup_file = None
+        self._force_closing = False
 
     def set_window(self, window):
         """Set the webview window reference."""
@@ -182,12 +184,13 @@ class Api:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def set_current_file(self, file_path: str):
-        """Set the current file path (used for drag-and-drop where JS already has content)."""
+    def set_current_file(self, file_path: str | None = None):
+        """Set the current file path (used by tab switching to sync state)."""
         self._current_file = file_path
         self._modified = False
         self._update_title()
-        self.add_recent_file(file_path)
+        if file_path:
+            self.add_recent_file(file_path)
         return {"success": True, "path": file_path}
 
     def save_file(self, content: str):
@@ -249,6 +252,23 @@ class Api:
             "modified": self._modified,
             "filename": Path(self._current_file).name if self._current_file else "Untitled",
         }
+
+    # ─── Window Control ───────────────────────────────────────────────────
+
+    def force_close(self):
+        """Close the window after save dialogs are resolved.
+
+        Called by JS after the user confirms close (save/discard).
+        Sets a flag so on_closing skips the dirty check on the way out.
+
+        Destroys the window via a short-delay timer so the JS bridge call
+        can return before teardown. Calling destroy() synchronously here
+        deadlocks on macOS: PyWebView is still awaiting the bridge Promise
+        when destroy() tries to dispatch to the main thread.
+        """
+        self._force_closing = True
+        if self.window:
+            threading.Timer(0.1, self.window.destroy).start()
 
     # ─── Settings ────────────────────────────────────────────────────────
 

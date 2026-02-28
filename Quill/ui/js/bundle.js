@@ -31413,6 +31413,9 @@
   function showError(message, duration) {
     return showToast(message, "error", duration);
   }
+  function showInfo(message, duration) {
+    return showToast(message, "info", duration);
+  }
   function escapeHtml(text5) {
     const div = document.createElement("div");
     div.textContent = text5;
@@ -31453,9 +31456,18 @@
     document.getElementById("btn-code").addEventListener("click", handleCode);
     document.getElementById("btn-link").addEventListener("click", handleLink);
     document.getElementById("btn-image").addEventListener("click", handleImage);
-    document.getElementById("btn-h1").addEventListener("click", () => handleHeading(1));
-    document.getElementById("btn-h2").addEventListener("click", () => handleHeading(2));
-    document.getElementById("btn-h3").addEventListener("click", () => handleHeading(3));
+    document.getElementById("btn-h1").addEventListener("click", () => {
+      handleHeading(1);
+      closeHeadingDropdown();
+    });
+    document.getElementById("btn-h2").addEventListener("click", () => {
+      handleHeading(2);
+      closeHeadingDropdown();
+    });
+    document.getElementById("btn-h3").addEventListener("click", () => {
+      handleHeading(3);
+      closeHeadingDropdown();
+    });
     document.getElementById("btn-bullet").addEventListener("click", handleBulletList);
     document.getElementById("btn-numlist").addEventListener("click", handleNumberedList);
     document.getElementById("btn-task").addEventListener("click", handleTaskList);
@@ -31463,8 +31475,34 @@
     document.getElementById("btn-codeblock").addEventListener("click", handleCodeBlock);
     document.getElementById("btn-table").addEventListener("click", handleTable);
     document.getElementById("btn-source").addEventListener("click", handleSourceToggle);
+    setupHeadingDropdown();
     document.getElementById("btn-theme").addEventListener("click", handleThemeToggle);
     document.getElementById("source-editor").addEventListener("input", handleSourceInput);
+  }
+  function setupHeadingDropdown() {
+    const dropdown = document.getElementById("heading-dropdown");
+    const btn = document.getElementById("btn-heading");
+    const menu = document.getElementById("heading-menu");
+    if (!dropdown || !btn || !menu) return;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".dropdown.open").forEach((d) => {
+        if (d !== dropdown) d.classList.remove("open");
+      });
+      dropdown.classList.toggle("open");
+    });
+    document.addEventListener("click", () => {
+      dropdown.classList.remove("open");
+    });
+    menu.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+  }
+  function closeHeadingDropdown() {
+    const dropdown = document.getElementById("heading-dropdown");
+    if (dropdown) {
+      dropdown.classList.remove("open");
+    }
   }
   function handleSourceToggle() {
     const editor = document.getElementById("editor");
@@ -31479,7 +31517,6 @@
       editor.classList.add("hidden");
       sourceEditor.classList.remove("hidden");
       sourceBtn.classList.add("active");
-      sourceBtn.textContent = "WYSIWYG";
       statusMode.style.display = "inline";
       statusModeSep.style.display = "inline";
       sourceEditor.focus();
@@ -31489,7 +31526,6 @@
       sourceEditor.classList.add("hidden");
       editor.classList.remove("hidden");
       sourceBtn.classList.remove("active");
-      sourceBtn.textContent = "Source";
       statusMode.style.display = "none";
       statusModeSep.style.display = "none";
       focus();
@@ -31567,7 +31603,7 @@
       if (setActiveTabModifiedCallback) {
         setActiveTabModifiedCallback(false);
       }
-      showSuccess(`Saved: ${result.path.split("/").pop()}`);
+      showSuccess(`Saved: ${result.path.replace(/\\/g, "/").split("/").pop()}`);
       if (isSourceMode) {
         document.getElementById("source-editor").focus();
       } else {
@@ -31865,7 +31901,7 @@
       path: path2,
       content: content3,
       modified,
-      filename: filename || (path2 ? path2.split("/").pop() : "Untitled")
+      filename: filename || (path2 ? path2.replace(/\\/g, "/").split("/").pop() : "Untitled")
     };
     tabs.push(tab);
     if (activate) {
@@ -31956,7 +31992,7 @@
     const tab = getActiveTab();
     if (tab) {
       tab.path = path2;
-      tab.filename = filename || (path2 ? path2.split("/").pop() : "Untitled");
+      tab.filename = filename || (path2 ? path2.replace(/\\/g, "/").split("/").pop() : "Untitled");
       renderTabs();
     }
   }
@@ -32035,6 +32071,39 @@
         }
       });
     }
+  }
+  function hasDirtyTabs() {
+    return tabs.some((t) => t.modified);
+  }
+  async function handleAppClose() {
+    if (activeTabId !== null) {
+      const activeTab = tabs.find((t) => t.id === activeTabId);
+      if (activeTab) {
+        if (onContentRequest) {
+          activeTab.content = onContentRequest();
+        }
+        activeTab.modified = getIsModifiedCallback();
+      }
+    }
+    const dirtyTabs = tabs.filter((t) => t.modified);
+    if (dirtyTabs.length === 0) return true;
+    const label = dirtyTabs.length === 1 ? dirtyTabs[0].filename : `${dirtyTabs.length} unsaved files`;
+    const result = await showSaveDialog(label);
+    if (result === "cancel") return false;
+    if (result === "save") {
+      for (const tab of dirtyTabs) {
+        if (!tab.path) {
+          switchToTab(tab.id);
+          const mod = navigator.platform.toUpperCase().includes("MAC") ? "\u2318S" : "Ctrl+S";
+          showInfo(`Save the file first (${mod}), then close again.`);
+          return false;
+        }
+        switchToTab(tab.id);
+        const saved = await saveCallback();
+        if (!saved) return false;
+      }
+    }
+    return true;
   }
 
   // js/find.js
@@ -32608,7 +32677,7 @@
     initOutline();
     setupViewModeButtons();
     setupFontSizeControls();
-    setupRecentFiles();
+    setupRecentPanel();
     setupDragAndDrop();
     setupKeyboardShortcuts();
     updateWordCount();
@@ -32646,7 +32715,7 @@
   }
   async function updateWindowTitle(tab) {
     const api = await getApi();
-    if (api.set_current_file && tab.path) {
+    if (api.set_current_file) {
       await api.set_current_file(tab.path);
     }
   }
@@ -32723,71 +32792,101 @@
       });
     }
   }
-  async function setupRecentFiles() {
-    const dropdown = document.getElementById("recent-dropdown");
-    const btn = document.getElementById("btn-recent");
-    const menu = document.getElementById("recent-menu");
-    if (!dropdown || !btn || !menu) return;
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      document.querySelectorAll(".dropdown.open").forEach((d) => {
-        if (d !== dropdown) d.classList.remove("open");
+  var recentPanelVisible = false;
+  var selectedRecentItem = null;
+  function setupRecentPanel() {
+    const toggleBtn = document.getElementById("btn-recent-panel");
+    const closeBtn = document.getElementById("recent-close");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        toggleRecentPanel();
       });
-      const isOpen = dropdown.classList.toggle("open");
-      if (isOpen) {
-        await populateRecentFiles();
-      }
-    });
-    document.addEventListener("click", () => {
-      dropdown.classList.remove("open");
-    });
-    menu.addEventListener("click", (e) => {
-      e.stopPropagation();
-    });
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        hideRecentPanel();
+      });
+    }
   }
-  async function populateRecentFiles() {
-    const menu = document.getElementById("recent-menu");
-    if (!menu) return;
-    menu.innerHTML = "";
+  function toggleRecentPanel() {
+    recentPanelVisible = !recentPanelVisible;
+    const panel = document.getElementById("recent-panel");
+    const toggleBtn = document.getElementById("btn-recent-panel");
+    if (recentPanelVisible) {
+      panel?.classList.remove("hidden");
+      toggleBtn?.classList.add("active");
+      populateRecentPanel();
+    } else {
+      panel?.classList.add("hidden");
+      toggleBtn?.classList.remove("active");
+      selectedRecentItem = null;
+    }
+  }
+  function hideRecentPanel() {
+    if (recentPanelVisible) {
+      toggleRecentPanel();
+    }
+  }
+  async function populateRecentPanel() {
+    const content3 = document.getElementById("recent-content");
+    const panel = document.getElementById("recent-panel");
+    if (!content3 || !panel) return;
+    content3.innerHTML = "";
+    selectedRecentItem = null;
+    const existingClear = panel.querySelector(".recent-clear");
+    if (existingClear) {
+      existingClear.remove();
+    }
     try {
       const recentFiles = await getRecentFiles();
       if (!recentFiles || recentFiles.length === 0) {
-        const emptyItem = document.createElement("div");
-        emptyItem.className = "dropdown-item empty";
-        emptyItem.textContent = "No recent files";
-        menu.appendChild(emptyItem);
+        const emptyEl = document.createElement("div");
+        emptyEl.className = "recent-empty";
+        emptyEl.textContent = "No recent files";
+        content3.appendChild(emptyEl);
       } else {
         recentFiles.forEach((filePath) => {
-          const item = document.createElement("button");
-          item.className = "dropdown-item";
-          item.textContent = filePath.split("/").pop();
+          const item = document.createElement("div");
+          item.className = "recent-item";
+          const parts = filePath.replace(/\\/g, "/").split("/");
+          item.textContent = parts[parts.length - 1];
           item.title = filePath;
-          item.addEventListener("click", async () => {
-            await handleOpenRecent(filePath);
-            document.getElementById("recent-dropdown").classList.remove("open");
+          item.dataset.path = filePath;
+          item.addEventListener("click", () => {
+            content3.querySelectorAll(".recent-item.selected").forEach((el) => {
+              el.classList.remove("selected");
+            });
+            item.classList.add("selected");
+            selectedRecentItem = filePath;
           });
-          menu.appendChild(item);
+          item.addEventListener("dblclick", async () => {
+            await handleOpenRecentPanelItem(filePath);
+          });
+          content3.appendChild(item);
         });
-        const divider = document.createElement("div");
-        divider.className = "dropdown-divider";
-        menu.appendChild(divider);
-        const clearItem = document.createElement("button");
-        clearItem.className = "dropdown-item";
-        clearItem.textContent = "Clear Recent Files";
-        clearItem.addEventListener("click", async () => {
+        const clearBtn = document.createElement("button");
+        clearBtn.className = "recent-clear";
+        clearBtn.textContent = "Clear Recent";
+        clearBtn.addEventListener("click", async () => {
           await clearRecentFiles();
-          document.getElementById("recent-dropdown").classList.remove("open");
+          populateRecentPanel();
         });
-        menu.appendChild(clearItem);
+        panel.appendChild(clearBtn);
       }
     } catch (e) {
-      const errorItem = document.createElement("div");
-      errorItem.className = "dropdown-item empty";
-      errorItem.textContent = "Could not load recent files";
-      menu.appendChild(errorItem);
+      const errorEl = document.createElement("div");
+      errorEl.className = "recent-empty";
+      errorEl.textContent = "Could not load recent files";
+      content3.appendChild(errorEl);
     }
   }
-  async function handleOpenRecent(filePath) {
+  async function handleOpenRecentPanelItem(filePath) {
+    const existingTab = getTabByPath(filePath);
+    if (existingTab) {
+      switchToTab(existingTab.id);
+      focus();
+      return;
+    }
     const result = await openRecentFile(filePath);
     if (result.success) {
       openFileInTab(result.path, result.content);
@@ -32900,6 +32999,12 @@
           e.preventDefault();
           e.stopPropagation();
           findPrev();
+          return;
+        }
+        if ((key4 === "8" || key4 === "*") && !isInSourceMode()) {
+          e.preventDefault();
+          e.stopPropagation();
+          document.getElementById("btn-bullet").click();
           return;
         }
       }
@@ -33030,15 +33135,46 @@
         el.title = tooltip;
       }
     });
+    const zoomIn = document.getElementById("btn-zoom-in");
+    const zoomOut = document.getElementById("btn-zoom-out");
+    if (zoomIn) zoomIn.title = `Zoom In (${mod}+)`;
+    if (zoomOut) zoomOut.title = `Zoom Out (${mod}-)`;
   }
+  window._quillHasDirtyTabs = () => {
+    const activeTab = getActiveTab();
+    if (activeTab) {
+      activeTab.modified = getIsModified2();
+    }
+    return hasDirtyTabs();
+  };
+  window._quillHandleAppClose = async () => {
+    const okToClose = await handleAppClose();
+    if (okToClose) {
+      const api = await getApi();
+      if (api.force_close) {
+        api.force_close();
+      }
+    }
+  };
   window._quillOpenStartupFile = (filePath, content3) => {
     const tryOpen = () => {
       try {
         const { openFileInTab: openFileInTab2 } = window._quillTabs || {};
-        if (openFileInTab2) {
-          openFileInTab2(filePath, content3);
-        } else {
+        if (!openFileInTab2) {
           setTimeout(tryOpen, 100);
+          return;
+        }
+        const allTabs = getAllTabs();
+        const activeTab = getActiveTab();
+        const currentContent = getSourceContent();
+        const isInitialEmptyTab = allTabs.length === 1 && activeTab && !activeTab.path && !activeTab.modified && (!currentContent || currentContent.trim() === "");
+        if (isInitialEmptyTab) {
+          ignoreNextChanges = 2;
+          setSourceContent(content3);
+          setActiveTabPath(filePath);
+          setCurrentFile(filePath);
+        } else {
+          openFileInTab2(filePath, content3);
         }
       } catch (e) {
         setTimeout(tryOpen, 100);

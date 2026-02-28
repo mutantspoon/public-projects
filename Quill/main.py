@@ -26,8 +26,11 @@ def main():
 
     from src.window import start_app
 
-    # Accept a file path as command-line argument (used by file associations)
+    # Accept a file path as command-line argument (used by file associations).
+    # Filter out macOS process serial numbers (-psn_0_XXXXX) passed by Finder.
     file_path = sys.argv[1] if len(sys.argv) > 1 else None
+    if file_path and file_path.startswith("-psn"):
+        file_path = None
 
     start_app(file_path=file_path)
 
