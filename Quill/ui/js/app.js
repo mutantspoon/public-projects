@@ -182,7 +182,7 @@ function handleTabChange(tab) {
 async function updateWindowTitle(tab) {
     const api = await getApi();
     if (api.set_current_file) {
-        await api.set_current_file(tab.path);  // Pass null too - clears Python state
+        await api.set_current_file(tab.path);  // null clears Python's title/modified state
     }
 }
 
