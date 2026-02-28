@@ -33120,20 +33120,23 @@
     const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
     const mod = isMac ? "\u2318" : "Ctrl+";
     const shift2 = isMac ? "\u21E7" : "Shift+";
-    document.querySelectorAll("[data-tooltip]").forEach((el) => {
-      const tooltip = el.getAttribute("data-tooltip");
+    document.querySelectorAll(".toolbar-btn[data-tooltip]").forEach((el) => {
+      const label = el.getAttribute("data-tooltip");
       const shortcut = el.getAttribute("data-shortcut");
+      let text5;
       if (shortcut) {
-        let formattedShortcut = shortcut;
+        let formattedShortcut;
         if (shortcut.startsWith("shift+")) {
           formattedShortcut = shift2 + shortcut.slice(6).toUpperCase();
         } else {
           formattedShortcut = shortcut.toUpperCase();
         }
-        el.title = `${tooltip} ${mod}${formattedShortcut}`;
+        text5 = `${label}  ${mod}${formattedShortcut}`;
       } else {
-        el.title = tooltip;
+        text5 = label;
       }
+      el.setAttribute("data-title", text5);
+      el.setAttribute("aria-label", label);
     });
     const zoomIn = document.getElementById("btn-zoom-in");
     const zoomOut = document.getElementById("btn-zoom-out");

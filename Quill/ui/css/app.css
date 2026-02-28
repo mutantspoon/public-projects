@@ -59,6 +59,7 @@ body {
     font-size: 11px;
     font-weight: 500;
     cursor: pointer;
+    position: relative;
     transition: background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
                 transform 0.1s ease;
     -webkit-font-smoothing: antialiased;
@@ -100,7 +101,7 @@ body {
     position: relative;
 }
 
-.toolbar-btn.active::after {
+.toolbar-btn.active::before {
     content: '';
     position: absolute;
     bottom: 2px;
@@ -116,6 +117,40 @@ body {
 .toolbar-btn.active:hover {
     background-color: var(--accent);
     filter: brightness(1.1);
+}
+
+/* ─── Toolbar Tooltips ───────────────────────────────────────────────── */
+
+.toolbar-btn[data-title]::after {
+    content: attr(data-title);
+    position: absolute;
+    top: calc(100% + 7px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 5px 9px;
+    background: var(--tooltip-bg);
+    color: var(--tooltip-text);
+    font-size: 11px;
+    font-weight: 400;
+    border-radius: 5px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 9999;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    /* Hide immediately on mouse-out */
+    transition: opacity 0.1s ease 0s;
+}
+
+.toolbar-btn[data-title]:hover::after {
+    opacity: 1;
+    /* Short delay before showing, then quick fade in */
+    transition: opacity 0.1s ease 0.5s;
+}
+
+.toolbar-btn[data-title]:active::after {
+    opacity: 0;
+    transition: none;
 }
 
 .toolbar-separator {

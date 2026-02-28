@@ -713,24 +713,30 @@ function setupTooltips() {
     const mod = isMac ? '⌘' : 'Ctrl+';
     const shift = isMac ? '⇧' : 'Shift+';
 
-    document.querySelectorAll('[data-tooltip]').forEach(el => {
-        const tooltip = el.getAttribute('data-tooltip');
+    // Build tooltip text and set data-title (read by CSS ::after) + aria-label.
+    // Only process .toolbar-btn elements; dropdown items are text and don't need tooltips.
+    document.querySelectorAll('.toolbar-btn[data-tooltip]').forEach(el => {
+        const label = el.getAttribute('data-tooltip');
         const shortcut = el.getAttribute('data-shortcut');
+        let text;
 
         if (shortcut) {
-            let formattedShortcut = shortcut;
+            let formattedShortcut;
             if (shortcut.startsWith('shift+')) {
                 formattedShortcut = shift + shortcut.slice(6).toUpperCase();
             } else {
                 formattedShortcut = shortcut.toUpperCase();
             }
-            el.title = `${tooltip} ${mod}${formattedShortcut}`;
+            text = `${label}  ${mod}${formattedShortcut}`;
         } else {
-            el.title = tooltip;
+            text = label;
         }
+
+        el.setAttribute('data-title', text);
+        el.setAttribute('aria-label', label);
     });
 
-    // Fix zoom button tooltips (no data-tooltip so handled separately)
+    // Status bar zoom buttons use native title (not toolbar-btn, no CSS tooltip)
     const zoomIn = document.getElementById('btn-zoom-in');
     const zoomOut = document.getElementById('btn-zoom-out');
     if (zoomIn) zoomIn.title = `Zoom In (${mod}+)`;
