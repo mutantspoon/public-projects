@@ -477,12 +477,19 @@ fn get_startup_file(
 fn force_close(app: AppHandle, state: State<'_, SharedState>) {
     // Save window geometry before destroying
     if let Some(window) = app.get_webview_window("main") {
-        if let (Ok(size), Ok(pos)) = (window.outer_size(), window.outer_position()) {
+        // Convert physical pixels → logical so restore works correctly on HiDPI/Retina
+        if let (Ok(size), Ok(pos), Ok(scale)) = (
+            window.outer_size(),
+            window.outer_position(),
+            window.scale_factor(),
+        ) {
+            let logical_size = size.to_logical::<u32>(scale);
+            let logical_pos = pos.to_logical::<i32>(scale);
             let mut s = state.lock().unwrap();
-            s.settings.window_width = size.width;
-            s.settings.window_height = size.height;
-            s.settings.window_x = Some(pos.x);
-            s.settings.window_y = Some(pos.y);
+            s.settings.window_width = logical_size.width;
+            s.settings.window_height = logical_size.height;
+            s.settings.window_x = Some(logical_pos.x);
+            s.settings.window_y = Some(logical_pos.y);
             let config_dir = s.config_dir.clone();
             save_settings(&config_dir, &s.settings);
         }
@@ -559,15 +566,26 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app, event| {
-            // Handle macOS "Open with" while app is already running (Finder sends Opened event)
+        .run(|app, event| {
+            // Handle macOS "Open with" — fires on fresh launch AND when app is already running.
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = &event {
                 for url in urls {
                     if let Ok(path) = url.to_file_path() {
                         let path_str = path.to_string_lossy().to_string();
                         if let Ok(content) = fs::read_to_string(&path) {
-                            let _ = _app.emit(
+                            // Store as startup_file so get_startup_file() picks it up
+                            // if the webview isn't ready yet (fresh launch case).
+                            {
+                                let state = app.state::<SharedState>();
+                                let mut s = state.lock().unwrap();
+                                if s.startup_file.is_none() {
+                                    s.startup_file = Some(path_str.clone());
+                                }
+                            }
+                            // Also emit for the "already running" case where the
+                            // JS listener is already registered.
+                            let _ = app.emit(
                                 "open-file",
                                 serde_json::json!({ "path": path_str, "content": content }),
                             );
