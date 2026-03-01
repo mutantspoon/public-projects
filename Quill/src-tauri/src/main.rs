@@ -7,6 +7,7 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
+use tauri::Emitter;
 use tauri_plugin_dialog::DialogExt;
 
 const MAX_RECENT_FILES: usize = 10;
