@@ -147,7 +147,6 @@ fn open_file(app: AppHandle, state: State<'_, SharedState>) -> serde_json::Value
 
 ## Settings
 
-Stored in the same location as the Python version (migration-compatible):
 - **Windows**: `%APPDATA%\Quill\settings.json`
 - **macOS**: `~/Library/Application Support/Quill/settings.json`
 

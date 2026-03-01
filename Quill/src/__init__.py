@@ -1,1 +1,0 @@
-# Quill - Lightweight Markdown Editor

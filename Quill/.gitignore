@@ -1,17 +1,3 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-ENV/
-env/
-.venv/
-*.egg-info/
-dist/
-build/
-
 # Node.js
 node_modules/
 ui/node_modules/
@@ -37,6 +23,8 @@ Desktop.ini
 # Rust build output
 src-tauri/target/
 
+# Tauri generated (checked in for schema validation, but keep target out)
+# src-tauri/gen/ is intentionally tracked
+
 # Quill specific
 *.log
-*.spec
