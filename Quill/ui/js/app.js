@@ -6,6 +6,8 @@
 import { initEditor, getContent, getWordCount, focus } from './editor.js';
 import { initToolbar, handleSave, applyTheme, handleSourceToggle, isInSourceMode, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks } from './toolbar.js';
 import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile } from './bridge.js';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { listen } from '@tauri-apps/api/event';
 import { initTabs, createTab, closeActiveTab, getActiveTab, setActiveTabModified, setActiveTabPath, openFileInTab, newTab, nextTab, prevTab, getAllTabs, getTabByPath, switchToTab, hasDirtyTabs, handleAppClose } from './tabs.js';
 import { initFind, showFindBar, hideFindBar, findNext, findPrev, isFindVisible } from './find.js';
 import { showToast, showSuccess, showError, showInfo } from './toast.js';
@@ -94,7 +96,7 @@ async function init() {
         getTabs: getAllTabs,
     });
 
-    // Expose tab functions globally for Python evaluate_js calls
+    // Expose tab functions globally (used by open-file event listener below)
     window._quillTabs = { openFileInTab };
 
     // Initialize find & replace
@@ -131,6 +133,32 @@ async function init() {
         }
     } catch (e) {
         // Ignore startup file errors
+    }
+
+    // Handle window close via Tauri (replaces Python on_closing / _quillHandleAppClose)
+    try {
+        const appWindow = getCurrentWindow();
+        await appWindow.onCloseRequested(async (event) => {
+            event.preventDefault();
+            const okToClose = await handleAppClose();
+            if (okToClose) {
+                const api = await getApi();
+                // Don't await — window.destroy() fires before the invoke returns
+                api.force_close();
+            }
+        });
+    } catch (e) {
+        // Not in Tauri context (should not happen in production)
+    }
+
+    // Handle macOS "Open with" events fired while the app is already running
+    try {
+        await listen('open-file', (event) => {
+            const { path, content } = event.payload;
+            openFileInTab(path, content);
+        });
+    } catch (e) {
+        // Not in Tauri context
     }
 
     // Focus the editor
@@ -743,68 +771,7 @@ function setupTooltips() {
     if (zoomOut) zoomOut.title = `Zoom Out (${mod}-)`;
 }
 
-// Global hooks for Python to call via evaluate_js for app close handling.
-window._quillHasDirtyTabs = () => {
-    // Sync active tab's modified state before checking
-    const activeTab = getActiveTab();
-    if (activeTab) {
-        activeTab.modified = getIsModified();
-    }
-    return hasDirtyTabs();
-};
-
-window._quillHandleAppClose = async () => {
-    const okToClose = await handleAppClose();
-    if (okToClose) {
-        const api = await getApi();
-        if (api.force_close) {
-            // Don't await — Python will destroy the window on a timer and the
-            // window may be gone before a response arrives. Awaiting here would
-            // deadlock: the bridge is still pending when destroy() fires.
-            api.force_close();
-        }
-    }
-};
-
-// Global function for Python to call via evaluate_js for startup file loading.
-// On a fresh launch, replaces the initial empty Untitled tab so the user sees
-// only the opened file. If the app is already running (_startupComplete), opens
-// in a new tab as normal.
-window._quillOpenStartupFile = (filePath, content) => {
-    const tryOpen = () => {
-        try {
-            const { openFileInTab } = window._quillTabs || {};
-            if (!openFileInTab) {
-                setTimeout(tryOpen, 100);
-                return;
-            }
-
-            // Replace the initial empty tab only during startup (before init()
-            // finishes). After that, always open in a new tab.
-            const allTabs = getAllTabs();
-            const activeTab = getActiveTab();
-            const currentContent = getSourceContent();
-            const isInitialEmptyTab =
-                allTabs.length === 1 &&
-                activeTab &&
-                !activeTab.path &&
-                !activeTab.modified &&
-                (!currentContent || currentContent.trim() === '');
-
-            if (isInitialEmptyTab) {
-                ignoreNextChanges = 2;
-                setSourceContent(content);
-                setActiveTabPath(filePath);
-                setCurrentFile(filePath);  // sync Python title state
-            } else {
-                openFileInTab(filePath, content);
-            }
-        } catch (e) {
-            setTimeout(tryOpen, 100);
-        }
-    };
-    tryOpen();
-};
+// (Close handling and macOS file-open events are registered in init() via Tauri APIs)
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {

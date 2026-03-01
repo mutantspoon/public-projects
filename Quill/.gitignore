@@ -13,6 +13,7 @@ dist/
 build/
 
 # Node.js
+node_modules/
 ui/node_modules/
 ui/package-lock.json
 
@@ -27,12 +28,14 @@ ui/package-lock.json
 .DS_Store
 .AppleDouble
 .LSOverride
-Icon?
 
 # Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Rust build output
+src-tauri/target/
 
 # Quill specific
 *.log
