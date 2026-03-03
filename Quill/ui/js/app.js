@@ -5,7 +5,7 @@
 
 import { initEditor, getContent, getWordCount, focus } from './editor.js';
 import { initToolbar, handleSave, applyTheme, handleSourceToggle, isInSourceMode, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks } from './toolbar.js';
-import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile } from './bridge.js';
+import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile, revealInFinder } from './bridge.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { initTabs, createTab, closeActiveTab, getActiveTab, setActiveTabModified, setActiveTabPath, openFileInTab, newTab, nextTab, prevTab, getAllTabs, getTabByPath, switchToTab, hasDirtyTabs, handleAppClose } from './tabs.js';
@@ -328,6 +328,47 @@ function setupViewModeButtons() {
 
 let recentPanelVisible = false;
 let selectedRecentItem = null;
+let contextMenuTarget = null;
+
+function initContextMenu() {
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.id = 'recent-context-menu';
+
+    const revealItem = document.createElement('div');
+    revealItem.className = 'context-menu-item';
+    revealItem.textContent = 'Open File Location';
+    revealItem.addEventListener('click', async () => {
+        if (contextMenuTarget) await revealInFinder(contextMenuTarget);
+        hideContextMenu();
+    });
+    menu.appendChild(revealItem);
+    document.body.appendChild(menu);
+
+    document.addEventListener('click', hideContextMenu, true);
+    document.addEventListener('contextmenu', (e) => {
+        if (!e.target.closest('#recent-context-menu')) hideContextMenu();
+    }, true);
+}
+
+function showContextMenu(x, y, filePath) {
+    let menu = document.getElementById('recent-context-menu');
+    if (!menu) { initContextMenu(); menu = document.getElementById('recent-context-menu'); }
+    contextMenuTarget = filePath;
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.classList.add('visible');
+    // Nudge back on-screen if needed
+    const r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth) menu.style.left = `${x - r.width}px`;
+    if (r.bottom > window.innerHeight) menu.style.top = `${y - r.height}px`;
+}
+
+function hideContextMenu() {
+    const menu = document.getElementById('recent-context-menu');
+    if (menu) menu.classList.remove('visible');
+    contextMenuTarget = null;
+}
 
 function setupRecentPanel() {
     const toggleBtn = document.getElementById('btn-recent-panel');
@@ -416,6 +457,12 @@ async function populateRecentPanel() {
                     await handleOpenRecentPanelItem(filePath);
                 });
 
+                // Right-click: context menu
+                item.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    showContextMenu(e.clientX, e.clientY, filePath);
+                });
+
                 content.appendChild(item);
             });
 
@@ -452,6 +499,8 @@ async function handleOpenRecentPanelItem(filePath) {
         openFileInTab(result.path, result.content);
     } else if (result.error) {
         showError(result.error);
+        // Rust already pruned missing files from the list — refresh to reflect it
+        populateRecentPanel();
     }
 
     focus();

@@ -82,6 +82,10 @@ export async function getStartupFile() {
     return invoke('get_startup_file');
 }
 
+export async function revealInFinder(path) {
+    return invoke('reveal_in_finder', { path });
+}
+
 export async function forceClose() {
     return invoke('force_close');
 }

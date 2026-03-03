@@ -479,6 +479,22 @@ fn get_startup_file(
 }
 
 #[tauri::command]
+fn reveal_in_finder(path: String) {
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").args(["-R", &path]).spawn();
+
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("explorer")
+        .arg(format!("/select,{}", path))
+        .spawn();
+
+    #[cfg(target_os = "linux")]
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        let _ = std::process::Command::new("xdg-open").arg(parent).spawn();
+    }
+}
+
+#[tauri::command]
 fn force_close(app: AppHandle, state: State<'_, SharedState>) {
     // Save window geometry before destroying
     if let Some(window) = app.get_webview_window("main") {
@@ -567,6 +583,7 @@ fn main() {
             get_window_position,
             save_window_position,
             get_startup_file,
+            reveal_in_finder,
             force_close,
         ])
         .build(tauri::generate_context!())
