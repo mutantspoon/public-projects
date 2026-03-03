@@ -176,7 +176,7 @@ fn new_file(app: AppHandle, state: State<'_, SharedState>) -> serde_json::Value 
 }
 
 #[tauri::command]
-async fn open_file(app: AppHandle, state: State<'_, SharedState>) -> serde_json::Value {
+async fn open_file(app: AppHandle) -> serde_json::Value {
     let (tx, rx) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
@@ -199,6 +199,7 @@ async fn open_file(app: AppHandle, state: State<'_, SharedState>) -> serde_json:
     let path_str = path.to_string_lossy().to_string();
     match read_file(&path_str) {
         Ok(content) => {
+            let state = app.state::<SharedState>();
             let mut s = state.lock().unwrap();
             s.current_file = Some(path_str.clone());
             s.modified = false;
@@ -242,25 +243,18 @@ fn open_recent_file(
 }
 
 #[tauri::command]
-async fn save_file(
-    content: String,
-    app: AppHandle,
-    state: State<'_, SharedState>,
-) -> serde_json::Value {
-    let current = state.lock().unwrap().current_file.clone();
+async fn save_file(content: String, app: AppHandle) -> serde_json::Value {
+    let current = app.state::<SharedState>().lock().unwrap().current_file.clone();
     if let Some(path) = current {
+        let state = app.state::<SharedState>();
         save_to_path(&path, &content, &app, &state)
     } else {
-        save_file_as(content, app, state).await
+        save_file_as(content, app).await
     }
 }
 
 #[tauri::command]
-async fn save_file_as(
-    content: String,
-    app: AppHandle,
-    state: State<'_, SharedState>,
-) -> serde_json::Value {
+async fn save_file_as(content: String, app: AppHandle) -> serde_json::Value {
     let (tx, rx) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
@@ -283,6 +277,7 @@ async fn save_file_as(
     };
 
     let path_str = path.to_string_lossy().to_string();
+    let state = app.state::<SharedState>();
     save_to_path(&path_str, &content, &app, &state)
 }
 
