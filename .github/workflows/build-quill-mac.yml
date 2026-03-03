@@ -1,7 +1,7 @@
-name: Build Quill (macOS)
+name: Build Quill
 
 on:
-  workflow_dispatch:          # run manually from GitHub Actions tab
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -13,7 +13,7 @@ jobs:
   build-macos:
     runs-on: macos-latest
     permissions:
-      contents: write         # needed to create releases
+      contents: write
 
     steps:
       - name: Checkout
@@ -44,15 +44,62 @@ jobs:
         working-directory: Quill
         run: npx tauri build
 
-      - name: Create or update release
+      - name: Publish DMG to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: quill-latest
           name: Quill (latest)
           body: |
-            Latest macOS build of Quill — updated automatically on every push.
+            Latest builds of Quill — updated automatically on every push.
 
-            **Install:** open the DMG, drag Quill to Applications.
-          prerelease: false
+            **macOS:** open the DMG, drag Quill to Applications.
+            **Windows:** run the MSI installer.
           make_latest: true
           files: Quill/src-tauri/target/release/bundle/dmg/*.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: Quill/src-tauri -> target
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install UI dependencies
+        working-directory: Quill/ui
+        run: npm install
+
+      - name: Install Tauri CLI
+        working-directory: Quill
+        run: npm install
+
+      - name: Build (Tauri)
+        working-directory: Quill
+        run: npx tauri build
+
+      - name: Publish MSI to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: quill-latest
+          name: Quill (latest)
+          body: |
+            Latest builds of Quill — updated automatically on every push.
+
+            **macOS:** open the DMG, drag Quill to Applications.
+            **Windows:** run the MSI installer.
+          make_latest: true
+          files: Quill/src-tauri/target/release/bundle/msi/*.msi
