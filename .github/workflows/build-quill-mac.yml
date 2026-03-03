@@ -12,6 +12,8 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
+    permissions:
+      contents: write         # needed to create releases
 
     steps:
       - name: Checkout
@@ -42,16 +44,15 @@ jobs:
         working-directory: Quill
         run: npx tauri build
 
-      - name: Upload DMG
-        uses: actions/upload-artifact@v4
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
         with:
-          name: Quill-macOS-dmg
-          path: Quill/src-tauri/target/release/bundle/dmg/*.dmg
-          if-no-files-found: error
+          tag_name: quill-latest
+          name: Quill (latest)
+          body: |
+            Latest macOS build of Quill — updated automatically on every push.
 
-      - name: Upload .app (zipped)
-        uses: actions/upload-artifact@v4
-        with:
-          name: Quill-macOS-app
-          path: Quill/src-tauri/target/release/bundle/macos/Quill.app
-          if-no-files-found: warn
+            **Install:** open the DMG, drag Quill to Applications.
+          prerelease: false
+          make_latest: true
+          files: Quill/src-tauri/target/release/bundle/dmg/*.dmg
