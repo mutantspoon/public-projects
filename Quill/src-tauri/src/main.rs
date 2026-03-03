@@ -176,12 +176,17 @@ fn new_file(app: AppHandle, state: State<'_, SharedState>) -> serde_json::Value 
 }
 
 #[tauri::command]
-fn open_file(app: AppHandle, state: State<'_, SharedState>) -> serde_json::Value {
-    let picked = app
-        .dialog()
+async fn open_file(app: AppHandle, state: State<'_, SharedState>) -> serde_json::Value {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
         .file()
         .add_filter("Markdown files", &["md", "markdown", "txt"])
-        .blocking_pick_file();
+        .pick_file(move |file_path| { let _ = tx.send(file_path); });
+
+    let picked = match rx.await {
+        Ok(p) => p,
+        Err(_) => return serde_json::json!({ "success": false, "cancelled": true }),
+    };
 
     let path = match picked {
         Some(fp) => match fp.into_path() {
@@ -237,7 +242,7 @@ fn open_recent_file(
 }
 
 #[tauri::command]
-fn save_file(
+async fn save_file(
     content: String,
     app: AppHandle,
     state: State<'_, SharedState>,
@@ -246,23 +251,28 @@ fn save_file(
     if let Some(path) = current {
         save_to_path(&path, &content, &app, &state)
     } else {
-        save_file_as(content, app, state)
+        save_file_as(content, app, state).await
     }
 }
 
 #[tauri::command]
-fn save_file_as(
+async fn save_file_as(
     content: String,
     app: AppHandle,
     state: State<'_, SharedState>,
 ) -> serde_json::Value {
-    let picked = app
-        .dialog()
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
         .file()
         .add_filter("Markdown files", &["md"])
         .add_filter("Text files", &["txt"])
         .set_file_name("Untitled.md")
-        .blocking_save_file();
+        .save_file(move |file_path| { let _ = tx.send(file_path); });
+
+    let picked = match rx.await {
+        Ok(p) => p,
+        Err(_) => return serde_json::json!({ "success": false, "cancelled": true }),
+    };
 
     let path = match picked {
         Some(fp) => match fp.into_path() {
