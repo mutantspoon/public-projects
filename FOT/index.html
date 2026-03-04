@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FOT Trading Cards</title>
+    <style>
+        :root {
+            --black: #0c0e1e;
+            --navy: #1e3166;
+            --royal: #2f52c4;
+            --blue: #5588d4;
+            --light: #dde2ee;
+            --wrap-bg: #131f42;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--black);
+            color: var(--light);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        header {
+            text-align: center;
+            padding: 3.5rem 1rem 2.5rem;
+            background: linear-gradient(180deg, #080a18 0%, var(--black) 100%);
+            border-bottom: 1px solid var(--navy);
+        }
+
+        header h1 {
+            font-size: clamp(2.5rem, 7vw, 5.5rem);
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #ffffff 0%, var(--blue) 55%, var(--royal) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header p {
+            margin-top: 0.6rem;
+            color: var(--blue);
+            font-size: 1rem;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+        }
+
+        /* ── Sections ── */
+        section {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 3.5rem 1.5rem;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 1.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--light);
+            margin-bottom: 2.5rem;
+        }
+
+        .section-title span { color: var(--blue); }
+
+        hr.divider {
+            border: none;
+            border-top: 1px solid var(--navy);
+        }
+
+        /* ── Video ── */
+        #video {
+            padding-top: 2.5rem;
+            padding-bottom: 2.5rem;
+        }
+
+        .video-link {
+            display: block;
+            position: relative;
+            max-width: 420px;
+            margin: 0 auto;
+            padding-bottom: min(56.25%, 236px); /* cap height */
+            height: 0;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #2a4278;
+            box-shadow: 0 0 0 1px rgba(80,130,220,0.08), 0 8px 30px rgba(0,0,0,0.4);
+            text-decoration: none;
+            background: #000;
+        }
+
+        .video-link img {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: opacity 0.2s;
+        }
+
+        .video-link:hover img { opacity: 0.75; }
+
+        .video-play {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 54px; height: 54px;
+            background: rgba(255,255,255,0.92);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.18s, background 0.18s;
+            pointer-events: none;
+        }
+
+        .video-play::after {
+            content: '';
+            display: block;
+            width: 0; height: 0;
+            border-style: solid;
+            border-width: 9px 0 9px 16px;
+            border-color: transparent transparent transparent #1a1a2e;
+            margin-left: 3px;
+        }
+
+        .video-link:hover .video-play {
+            transform: translate(-50%, -50%) scale(1.1);
+            background: white;
+        }
+
+        .video-label {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            padding: 1.5rem 1rem 0.75rem;
+            background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);
+            color: white;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+            pointer-events: none;
+        }
+
+        /* ── Carousel ── */
+        .carousel-wrapper {
+            /* Solid bg so edge fades match perfectly */
+            background:
+                radial-gradient(ellipse 65% 85% at 50% 58%, rgba(55, 95, 210, 0.14) 0%, transparent 70%),
+                var(--wrap-bg);
+            border: 1px solid #2a4278;
+            box-shadow: 0 0 0 1px rgba(80,130,220,0.08), 0 8px 40px rgba(0,0,0,0.4);
+            border-radius: 16px;
+            padding: 2rem 0 2rem;
+            overflow: hidden;
+        }
+
+        .carousel-row {
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+
+        .carousel-btn {
+            background: transparent;
+            border: none;
+            color: var(--light);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: color 0.18s, transform 0.12s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            position: relative;
+        }
+
+        .carousel-btn:hover {
+            color: white;
+            transform: scale(1.15);
+        }
+
+        /* Stage: clips overflow but keeps 3D via perspective */
+        .carousel-viewport {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            height: 360px;
+            perspective: 1100px;
+            perspective-origin: 50% 50%;
+        }
+
+        /* Edge fade overlays — must match var(--wrap-bg) exactly */
+        .carousel-viewport::before,
+        .carousel-viewport::after {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 160px;
+            z-index: 15;
+            pointer-events: none;
+        }
+        .carousel-viewport::before {
+            left: 0;
+            background: linear-gradient(to right, #131f42 0%, #131f42 10%, transparent 100%);
+        }
+        .carousel-viewport::after {
+            right: 0;
+            background: linear-gradient(to left, #131f42 0%, #131f42 10%, transparent 100%);
+        }
+
+        /* Individual card elements */
+        .card-item {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 210px;
+            height: 294px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid rgba(80, 120, 200, 0.45);
+            background: var(--navy);
+            cursor: pointer;
+            will-change: transform, opacity;
+            transition: transform 0.48s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                        opacity 0.48s ease,
+                        box-shadow 0.48s ease;
+        }
+
+        .card-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .card-item.is-center {
+            border-color: #80b0f0;
+            box-shadow:
+                0 0 0 1px rgba(128,176,240,0.3),
+                0 0 35px rgba(80,130,220,0.55),
+                0 20px 45px rgba(0,0,0,0.55);
+            cursor: default;
+        }
+
+        /* Card label below stage */
+        .card-label {
+            text-align: center;
+            margin-top: 1.25rem;
+            padding: 0 1rem;
+        }
+
+        .card-name {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--blue);
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            min-height: 1.4em;
+            transition: opacity 0.2s;
+        }
+
+        .carousel-dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--navy);
+            border: 1px solid var(--royal);
+            cursor: pointer;
+            transition: background 0.18s, transform 0.18s;
+        }
+
+        .dot.active {
+            background: var(--royal);
+            transform: scale(1.35);
+        }
+
+        /* ── Packs ── */
+        .packs-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .pack-card {
+            background: linear-gradient(180deg, #172040 0%, #0e1530 100%);
+            border: 1px solid #263a6a;
+            border-radius: 16px;
+            padding: 2.5rem 1.5rem 2rem;
+            text-align: center;
+            position: relative;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .pack-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--blue);
+            box-shadow: 0 8px 30px rgba(74, 122, 199, 0.2);
+        }
+
+        .pack-card.featured {
+            border-color: #4a72d4;
+            box-shadow: 0 0 0 1px rgba(80,130,220,0.15), 0 0 40px rgba(50,90,200,0.25);
+        }
+
+        .pack-badge {
+            position: absolute;
+            top: -13px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--royal);
+            color: white;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            padding: 4px 16px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+        .pack-count {
+            font-size: 4rem;
+            font-weight: 900;
+            color: white;
+            line-height: 1;
+        }
+
+        .pack-label {
+            font-size: 0.95rem;
+            color: var(--blue);
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            margin-top: 0.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .pack-divider {
+            width: 40px;
+            height: 2px;
+            background: var(--royal);
+            margin: 0 auto 1.5rem;
+        }
+
+        .pack-price {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: white;
+        }
+
+        .pack-per {
+            font-size: 0.82rem;
+            color: #6a8ab0;
+            margin-top: 0.35rem;
+        }
+
+        /* ── Order ── */
+        .order-box {
+            background: linear-gradient(160deg, #172040 0%, #0e1530 100%);
+            border: 1px solid #263a6a;
+            border-radius: 16px;
+            padding: 2.5rem;
+            text-align: center;
+        }
+
+        .order-box p {
+            color: #8aaad0;
+            margin-bottom: 2rem;
+            font-size: 1rem;
+            line-height: 1.65;
+        }
+
+        /* Replace this div with your Google Form <iframe> embed */
+        .form-placeholder {
+            background: #07090f;
+            border: 2px dashed #2a3a5e;
+            border-radius: 8px;
+            padding: 3rem 2rem;
+            color: #3a5a80;
+            font-size: 0.92rem;
+            line-height: 1.8;
+        }
+
+        /* ── Footer ── */
+        footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: #3a5a80;
+            font-size: 0.85rem;
+            border-top: 1px solid var(--navy);
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 700px) {
+            .packs-grid {
+                grid-template-columns: 1fr;
+                max-width: 340px;
+                margin: 0 auto;
+            }
+
+            .carousel-viewport {
+                height: 260px;
+            }
+
+            .card-item {
+                width: 160px;
+                height: 224px;
+            }
+
+            .carousel-btn {
+                width: 44px;
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+    <h1>FOT Trading Cards</h1>
+    <p>Collect &bull; Trade &bull; Play</p>
+</header>
+
+<!-- ══ CARD BROWSER ══ -->
+<section id="cards">
+    <h2 class="section-title">Card <span>Browser</span></h2>
+    <div class="carousel-wrapper">
+        <div class="carousel-row">
+            <button class="carousel-btn" id="prevBtn" aria-label="Previous card">&#8592;</button>
+            <div class="carousel-viewport" id="carouselViewport">
+                <!-- cards injected by JS -->
+            </div>
+            <button class="carousel-btn" id="nextBtn" aria-label="Next card">&#8594;</button>
+        </div>
+        <div class="card-label">
+            <div class="card-name" id="cardName"></div>
+        </div>
+        <div class="carousel-dots" id="carouselDots"></div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══ CARD PACKS ══ -->
+<section id="packs">
+    <h2 class="section-title">Card <span>Packs</span></h2>
+    <div class="packs-grid">
+
+        <div class="pack-card">
+            <div class="pack-count">1</div>
+            <div class="pack-label">Card</div>
+            <div class="pack-divider"></div>
+            <div class="pack-price">$2</div>
+            <div class="pack-per">$2.00 per card</div>
+        </div>
+
+        <div class="pack-card featured">
+            <div class="pack-badge">Best Value</div>
+            <div class="pack-count">5</div>
+            <div class="pack-label">Cards</div>
+            <div class="pack-divider"></div>
+            <div class="pack-price">$8</div>
+            <div class="pack-per">$1.60 per card</div>
+        </div>
+
+        <div class="pack-card">
+            <div class="pack-count">8</div>
+            <div class="pack-label">Cards</div>
+            <div class="pack-divider"></div>
+            <div class="pack-price">$12</div>
+            <div class="pack-per">$1.50 per card</div>
+        </div>
+
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══ ORDER ══ -->
+<section id="order">
+    <h2 class="section-title">Place an <span>Order</span></h2>
+    <div class="order-box">
+        <p>Pick your pack and leave your name &mdash; we'll handle the rest!<br>
+           Choose how many cards you want and fill out the form below.</p>
+
+        <!--
+            TO ADD YOUR GOOGLE FORM:
+            1. Open your Google Form
+            2. Click Send → Embed (<>) → Copy the iframe code
+            3. Replace the <div class="form-placeholder"> below with that <iframe>
+            4. Set width="100%" and a height like "600" on the iframe
+        -->
+        <div class="form-placeholder">
+            Order form coming soon!<br>
+            Replace this block with your Google Form embed code.
+        </div>
+
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══ VIDEO ══ -->
+<section id="video">
+    <a class="video-link"
+       href="https://youtu.be/W3ZVRdMkqdo?si=EbIZaTKqZDzgwtdu"
+       target="_blank" rel="noopener"
+       aria-label="Watch FOT Trading Cards on YouTube">
+        <img src="https://img.youtube.com/vi/W3ZVRdMkqdo/maxresdefault.jpg"
+             alt="FOT Trading Cards video thumbnail">
+        <div class="video-play"></div>
+        <div class="video-label">Watch on YouTube &rarr;</div>
+    </a>
+</section>
+
+<footer>
+    &copy; 2026 FOT Trading Cards
+</footer>
+
+<script>
+    const cards = [
+        { name: "Carrot Timmy",     src: "CardImages/Default Cards/carrot timmy.png" },
+        { name: "Fire Timmy",       src: "CardImages/Default Cards/fire timmy v2 .png" },
+        { name: "Galactic",         src: "CardImages/Default Cards/galactic.png" },
+        { name: "Ninja Timmy",      src: "CardImages/Default Cards/NINJA TIMMY (1).png" },
+        { name: "Tammy",            src: "CardImages/Default Cards/tammy.png" },
+        { name: "Timmy",            src: "CardImages/Default Cards/Timmy (1).png" },
+        { name: "Timmy Party",      src: "CardImages/Default Cards/timmy party png.png" },
+        { name: "Basketball Timmy", src: "CardImages/Sports/basketball timmy.png" },
+        { name: "Dunking",          src: "CardImages/Sports/DUNKING.png" },
+        { name: "Hurricanes",       src: "CardImages/Sports/huricanes (1).png" },
+    ];
+
+    // 3D position configs indexed by |offset| from center (0 = center, 1 = adjacent, etc.)
+    // x: horizontal distance from center (px), rotY: Y-axis rotation (deg)
+    const POS = [
+        { x: 0,   scale: 1.00, rotY: 0,  opacity: 1.00 },  // center
+        { x: 215, scale: 0.78, rotY: 28, opacity: 0.88 },  // ±1
+        { x: 378, scale: 0.60, rotY: 44, opacity: 0.55 },  // ±2
+        { x: 500, scale: 0.45, rotY: 55, opacity: 0.00 },  // ±3  (invisible, ready to appear)
+    ];
+
+    let current = 0;
+    const viewport = document.getElementById('carouselViewport');
+    const nameEl   = document.getElementById('cardName');
+    const dotsEl   = document.getElementById('carouselDots');
+
+    // Create one DOM element per card
+    const cardEls = cards.map((card, i) => {
+        const el = document.createElement('div');
+        el.className = 'card-item';
+        const img = document.createElement('img');
+        img.src = card.src;
+        img.alt = card.name;
+        img.draggable = false;
+        el.appendChild(img);
+        el.addEventListener('click', () => { if (i !== current) goTo(i); });
+        viewport.appendChild(el);
+        return el;
+    });
+
+    // Build indicator dots
+    cards.forEach((_, i) => {
+        const dot = document.createElement('button');
+        dot.className = 'dot' + (i === 0 ? ' active' : '');
+        dot.setAttribute('aria-label', 'Card ' + (i + 1));
+        dot.addEventListener('click', () => goTo(i));
+        dotsEl.appendChild(dot);
+    });
+
+    // Compute wrapped offset: shortest path around the ring, range -(N/2)..+(N/2)
+    function getOffset(i) {
+        const N = cards.length;
+        let offset = ((i - current) % N + N) % N;
+        if (offset > N / 2) offset -= N;
+        return offset;
+    }
+
+    function applyTransform(el, offset) {
+        const abs  = Math.abs(offset);
+        const sign = offset > 0 ? 1 : offset < 0 ? -1 : 0;
+        const pos  = POS[Math.min(abs, POS.length - 1)];
+
+        el.style.transform = [
+            'translate(-50%, -50%)',
+            `translateX(${sign * pos.x}px)`,
+            `scale(${pos.scale})`,
+            `rotateY(${-sign * pos.rotY}deg)`,
+        ].join(' ');
+
+        el.style.opacity      = pos.opacity;
+        el.style.zIndex       = 10 - abs;
+        el.style.pointerEvents = abs === 0 ? 'none' : (abs <= 2 ? 'auto' : 'none');
+        el.classList.toggle('is-center', abs === 0);
+    }
+
+    function render() {
+        cardEls.forEach((el, i) => applyTransform(el, getOffset(i)));
+        nameEl.textContent = cards[current].name;
+        dotsEl.querySelectorAll('.dot').forEach((d, i) => {
+            d.classList.toggle('active', i === current);
+        });
+    }
+
+    function goTo(index) {
+        current = ((index % cards.length) + cards.length) % cards.length;
+        render();
+    }
+
+    document.getElementById('prevBtn').addEventListener('click', () => goTo(current - 1));
+    document.getElementById('nextBtn').addEventListener('click', () => goTo(current + 1));
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft')  goTo(current - 1);
+        if (e.key === 'ArrowRight') goTo(current + 1);
+    });
+
+    // Swipe support for touch screens
+    let touchStartX = 0;
+    viewport.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    viewport.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 40) goTo(current + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+
+    render();
+</script>
+</body>
+</html>
