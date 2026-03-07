@@ -539,6 +539,34 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // A second instance was launched (Windows "Open with" when already running).
+            // Bring the existing window to the front.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+            // If the second instance carried a file path, open it as a new tab.
+            if let Some(path) = args.iter().skip(1).find(|a| !a.starts_with('-')) {
+                let path = path.clone();
+                match read_file(&path) {
+                    Ok(content) => {
+                        let state = app.state::<SharedState>();
+                        let mut s = state.lock().unwrap();
+                        add_recent_file_impl(&mut s.settings, &path);
+                        let config_dir = s.config_dir.clone();
+                        save_settings(&config_dir, &s.settings);
+                        drop(s);
+                        let _ = app.emit(
+                            "open-file",
+                            serde_json::json!({ "path": path, "content": content }),
+                        );
+                    }
+                    Err(_) => {}
+                }
+            }
+        }))
         .manage(Mutex::new(AppState {
             settings,
             current_file: None,
