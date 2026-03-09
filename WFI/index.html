@@ -90,9 +90,14 @@
     justify-content: center;
   }
   .grade-A { background: #e6f4ea; color: #1e7e34; }
-  .grade-B { background: #fff3cd; color: #856404; }
+  .grade-B { background: #fde8e8; color: #c0392b; }
   .grade-C { background: #fde8e8; color: #c0392b; }
   .grade-X { background: #eee;    color: #666; }
+
+  .score-great { color: #1e7e34; }
+  .score-meh   { color: #b8860b; }
+  .score-bad   { color: #c0392b; }
+  .score-awful { color: #c0392b; font-weight: 900; }
 
   #empty {
     text-align: center;
@@ -128,14 +133,25 @@ function gradeClass(g) {
   return 'grade-X';
 }
 
+function scoreClass(s) {
+  if (s >= 96) return 'score-great';
+  if (s >= 95) return 'score-meh';
+  if (s >= 93) return 'score-bad';
+  return 'score-awful';
+}
+
 function render(query) {
   if (!query) {
     results.innerHTML = '';
     return;
   }
 
-  const q = query.toLowerCase();
-  const matches = sorted.filter(r => r.n.toLowerCase().includes(q)).slice(0, 50);
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = sorted.filter(r => {
+    const name = r.n.toLowerCase();
+    const addr = r.a.toLowerCase();
+    return tokens.every(t => name.includes(t) || addr.includes(t));
+  }).slice(0, 50);
 
   if (!matches.length) {
     results.innerHTML = '<div id="empty">No results</div>';
@@ -149,7 +165,7 @@ function render(query) {
         <div class="addr">${esc(r.a)}, ${esc(r.c)}, NC ${esc(r.z)}</div>
       </div>
       <div class="right">
-        <div class="score">${r.s}</div>
+        <div class="score ${scoreClass(r.s)}">${r.s}</div>
         <div class="grade ${gradeClass(r.g)}">${esc(r.g)}</div>
       </div>
     </div>`).join('');
