@@ -1338,3 +1338,88 @@ body.drag-over::after {
 .ProseMirror pre code .token.italic {
     font-style: italic;
 }
+
+/* ─── Print / Export PDF ─────────────────────────────────────────────── */
+
+@media print {
+    /* Hide all UI chrome */
+    .toolbar,
+    .tab-bar,
+    .statusbar,
+    .find-bar,
+    .recent-panel,
+    .outline-panel,
+    .toast-container,
+    .modal-overlay {
+        display: none !important;
+    }
+
+    /* Reset layout so content flows naturally */
+    html, body {
+        height: auto !important;
+        overflow: visible !important;
+        background: #fff !important;
+        color: #1a1a1a !important;
+    }
+
+    .editor-container {
+        display: block !important;
+        overflow: visible !important;
+        height: auto !important;
+    }
+
+    /* Always print the WYSIWYG view (even if source mode is active) */
+    #editor {
+        display: block !important;
+        height: auto !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        flex: none !important;
+    }
+
+    #source-editor {
+        display: none !important;
+    }
+
+    /* Clean print typography */
+    .ProseMirror {
+        min-height: 0 !important;
+        white-space: normal !important;
+        color: #1a1a1a !important;
+    }
+
+    .ProseMirror h1, .ProseMirror h2, .ProseMirror h3,
+    .ProseMirror h4, .ProseMirror h5, .ProseMirror h6 {
+        color: #1a1a1a !important;
+    }
+
+    .ProseMirror a {
+        color: #0366d6 !important;
+    }
+
+    .ProseMirror code {
+        background: #f6f8fa !important;
+    }
+
+    .ProseMirror pre {
+        background: #f6f8fa !important;
+        border: 1px solid #e1e4e8;
+    }
+
+    .ProseMirror blockquote {
+        border-left-color: #dfe2e5 !important;
+        color: #6a737d !important;
+    }
+
+    .ProseMirror th {
+        background: #f6f8fa !important;
+    }
+
+    .ProseMirror th, .ProseMirror td {
+        border-color: #e1e4e8 !important;
+    }
+
+    .ProseMirror hr {
+        border-top-color: #e1e4e8 !important;
+    }
+}

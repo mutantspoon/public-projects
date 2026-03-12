@@ -5,7 +5,8 @@
 
 import { initEditor, getContent, getWordCount, focus } from './editor.js';
 import { initToolbar, handleSave, applyTheme, handleSourceToggle, isInSourceMode, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks } from './toolbar.js';
-import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile, revealInFinder } from './bridge.js';
+import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile, revealInFinder, savePdf } from './bridge.js';
+import { generatePdfB64 } from './pdf-export.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { initTabs, createTab, closeActiveTab, getActiveTab, setActiveTabModified, setActiveTabPath, openFileInTab, newTab, nextTab, prevTab, getAllTabs, getTabByPath, switchToTab, hasDirtyTabs, handleAppClose } from './tabs.js';
@@ -104,6 +105,9 @@ async function init() {
 
     // Initialize outline
     initOutline();
+
+    // Set up export PDF button
+    document.getElementById('btn-export-pdf').addEventListener('click', handleExportPdf);
 
     // Set up view mode buttons
     setupViewModeButtons();
@@ -267,6 +271,36 @@ function updateSourcePosition() {
     const col = lines[lines.length - 1].length + 1;
 
     updatePosition(line, col);
+}
+
+// ─── Export PDF ─────────────────────────────────────────────────────────
+
+async function handleExportPdf() {
+    // If in source mode, temporarily switch to WYSIWYG so html2canvas can render
+    const wasInSourceMode = isInSourceMode();
+    if (wasInSourceMode) {
+        handleSourceToggle();
+        await new Promise(r => setTimeout(r, 80));
+    }
+
+    try {
+        showInfo('Generating PDF…');
+        const dataB64 = await generatePdfB64();
+
+        const tab = getActiveTab();
+        const filename = tab?.path
+            ? tab.path.replace(/\\/g, '/').split('/').pop().replace(/\.[^.]+$/, '') + '.pdf'
+            : 'document.pdf';
+
+        const result = await savePdf(dataB64, filename);
+        if (result.success) {
+            showSuccess(`PDF saved: ${result.path.replace(/\\/g, '/').split('/').pop()}`);
+        }
+    } catch (e) {
+        showError('PDF export failed: ' + e.message);
+    } finally {
+        if (wasInSourceMode) handleSourceToggle();
+    }
 }
 
 // ─── Font Size ──────────────────────────────────────────────────────────
@@ -733,6 +767,12 @@ function setupKeyboardShortcuts() {
                 e.preventDefault();
                 e.stopPropagation();
                 resetFontSize();
+                break;
+
+            case 'p':
+                e.preventDefault();
+                e.stopPropagation();
+                handleExportPdf();
                 break;
 
             case 'f':

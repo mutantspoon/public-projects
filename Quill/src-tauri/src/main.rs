@@ -495,6 +495,36 @@ fn reveal_in_finder(path: String) {
 }
 
 #[tauri::command]
+async fn save_pdf(app: AppHandle, data_b64: String, filename: String) -> serde_json::Value {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    let data = match STANDARD.decode(&data_b64) {
+        Ok(d) => d,
+        Err(e) => return serde_json::json!({ "success": false, "error": e.to_string() }),
+    };
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("PDF", &["pdf"])
+        .set_file_name(&filename)
+        .save_file(move |path| { let _ = tx.send(path); });
+
+    let path = match rx.await {
+        Ok(Some(fp)) => match fp.into_path() {
+            Ok(p) => p,
+            Err(_) => return serde_json::json!({ "success": false, "cancelled": true }),
+        },
+        _ => return serde_json::json!({ "success": false, "cancelled": true }),
+    };
+
+    match fs::write(&path, &data) {
+        Ok(_) => serde_json::json!({ "success": true, "path": path.to_string_lossy() }),
+        Err(e) => serde_json::json!({ "success": false, "error": e.to_string() }),
+    }
+}
+
+#[tauri::command]
 fn force_close(app: AppHandle, state: State<'_, SharedState>) {
     // Save window geometry before destroying
     if let Some(window) = app.get_webview_window("main") {
@@ -612,6 +642,7 @@ fn main() {
             save_window_position,
             get_startup_file,
             reveal_in_finder,
+            save_pdf,
             force_close,
         ])
         .build(tauri::generate_context!())
