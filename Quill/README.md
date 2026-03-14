@@ -11,6 +11,7 @@ A lightweight, native markdown editor for macOS and Windows.
 - **Find & Replace** - Search and replace text with case-sensitivity option
 - **Document Outline** - Navigate long documents via heading hierarchy
 - **Source Mode** - Toggle between WYSIWYG and raw Markdown view
+- **Export PDF** - Export documents to PDF
 - **Dark/Light Themes** - Easy on the eyes, day or night
 - **Autosave & Draft Recovery** - Never lose your work
 - **Recent Files** - Quick access to recently opened documents
@@ -31,30 +32,25 @@ A lightweight, native markdown editor for macOS and Windows.
 | Strikethrough | Cmd+Shift+X | Ctrl+Shift+X |
 | Link | Cmd+K | Ctrl+K |
 | Code Block | Cmd+Shift+C | Ctrl+Shift+C |
+| Bullet List | Cmd+Shift+8 | Ctrl+Shift+8 |
 | Heading 1/2/3 | Cmd+1/2/3 | Ctrl+1/2/3 |
 | Toggle Source | Cmd+/ | Ctrl+/ |
+| Word Wrap | Alt+Z | Alt+Z |
 | Zoom In/Out | Cmd++/- | Ctrl++/- |
-| Next/Prev Tab | Cmd+Tab | Ctrl+Tab |
 
 ## Installation
 
 ### macOS
 
-1. Download `Quill.app` from Releases
-2. Move to Applications folder
-3. Double-click to run
+1. Download `Quill.dmg` from Releases
+2. Open and drag to Applications
+3. Double-click to run — `.md` files can be opened with Quill via "Open With"
 
 ### From Source
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/quill.git
-cd quill
-
-# Set up Python environment
-python3 -m venv venv
-source venv/bin/activate  # macOS/Linux
-pip install -r requirements.txt
+git clone https://github.com/mutantspoon/public-projects.git
+cd public-projects/Quill
 
 # Install JavaScript dependencies
 cd ui
@@ -62,13 +58,17 @@ npm install
 npm run build
 cd ..
 
-# Run the app
-python main.py
+# Run in dev mode
+cargo tauri dev
+
+# Production build
+cargo tauri build
+# Output: src-tauri/target/release/bundle/
 ```
 
 ## Tech Stack
 
-- **Python** + **PyWebView** - Native window with embedded WebView
+- **Tauri 2** + **Rust** - Native window with embedded OS WebView (~10MB binary)
 - **Milkdown** - WYSIWYG Markdown editor built on ProseMirror
 - **esbuild** - Fast JavaScript bundling
 
@@ -76,18 +76,16 @@ python main.py
 
 ```
 Quill/
-├── main.py              # Entry point
-├── requirements.txt     # Python dependencies
-├── src/
-│   ├── api.py           # Python API exposed to JavaScript
-│   ├── window.py        # Window management
-│   └── settings.py      # Settings persistence
-├── ui/
-│   ├── index.html       # Main HTML
-│   ├── css/             # Stylesheets
-│   ├── js/              # JavaScript modules
-│   └── package.json     # Node dependencies
-└── Quill.app            # macOS app bundle
+├── src-tauri/
+│   ├── Cargo.toml           # Rust dependencies
+│   ├── tauri.conf.json      # Window config, file associations
+│   └── src/
+│       └── main.rs          # Rust commands + app state
+└── ui/
+    ├── index.html           # Main HTML shell
+    ├── css/                 # App styles and themes
+    ├── js/                  # JavaScript modules
+    └── package.json         # Node dependencies
 ```
 
 ## License
