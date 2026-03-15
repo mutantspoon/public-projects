@@ -595,6 +595,27 @@ async fn save_pdf(app: AppHandle, data_b64: String, filename: String) -> serde_j
 }
 
 #[tauri::command]
+async fn call_gemini(api_key: String, system: String, user: String, model: String) -> serde_json::Value {
+    let client = reqwest::Client::new();
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
+        model, api_key
+    );
+    let body = serde_json::json!({
+        "contents": [{ "role": "user", "parts": [{ "text": user }] }],
+        "systemInstruction": { "parts": [{ "text": system }] },
+        "generationConfig": { "maxOutputTokens": 16384, "temperature": 0 }
+    });
+    let res = client.post(&url).json(&body).send().await;
+    match res {
+        Ok(r) => r.json::<serde_json::Value>().await.unwrap_or_else(|e| {
+            serde_json::json!({ "error": { "message": e.to_string() } })
+        }),
+        Err(e) => serde_json::json!({ "error": { "message": e.to_string() } }),
+    }
+}
+
+#[tauri::command]
 async fn call_anthropic(api_key: String, system: String, user: String, model: String) -> serde_json::Value {
     let client = reqwest::Client::new();
     let body = serde_json::json!({
@@ -747,6 +768,7 @@ fn main() {
             get_startup_file,
             reveal_in_finder,
             save_pdf,
+            call_gemini,
             call_anthropic,
             force_close,
         ])

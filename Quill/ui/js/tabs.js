@@ -3,7 +3,7 @@
  * Manages tab state, switching, and UI.
  */
 
-import { getContent, setContent, focus } from './editor.js';
+import { getContent, setContent, focus, getEditorView, clearHistory, restoreEditorState } from './editor.js';
 import { setModified } from './bridge.js';
 import { showSaveDialog } from './dialog.js';
 import { showInfo } from './toast.js';
@@ -57,6 +57,7 @@ export function createTab(options = {}) {
         modified,
         filename: filename || (path ? path.replace(/\\/g, '/').split('/').pop() : 'Untitled'),
         comments: [],
+        editorState: null, // saved ProseMirror state (includes undo history)
     };
 
     tabs.push(tab);
@@ -76,22 +77,40 @@ export function switchToTab(tabId) {
     const tab = tabs.find(t => t.id === tabId);
     if (!tab) return;
 
-    // Save current tab's content before switching
+    // Save current tab's content and full editor state before switching
     if (activeTabId !== null) {
         const currentTab = tabs.find(t => t.id === activeTabId);
         if (currentTab) {
             currentTab.content = onContentRequest ? onContentRequest() : getContent();
             currentTab.modified = getIsModifiedCallback();
             currentTab.comments = getTabCommentsCallback ? getTabCommentsCallback() : [];
+            // Snapshot the ProseMirror state (immutable object — cheap to store).
+            // This preserves the per-tab undo/redo stack so switching tabs
+            // doesn't contaminate history across documents.
+            const view = getEditorView();
+            if (view) currentTab.editorState = view.state;
         }
     }
 
     // Switch to new tab
     activeTabId = tabId;
 
-    // Load new tab's content (ignore next change events to prevent false dirty flag)
-    setLoadingContentCallback(true);
-    setContent(tab.content);
+    if (tab.editorState) {
+        // Restore the exact ProseMirror state we left behind — undo history intact,
+        // decorations restored, no cross-tab contamination.
+        // Do NOT set setLoadingContentCallback here: restoreEditorState bypasses
+        // Milkdown's listener so onChange never fires, and the ignore counter
+        // would never decrement — silently breaking dirty-state for the next 2 edits.
+        restoreEditorState(tab.editorState);
+    } else {
+        // First visit or fresh load — set content and wipe history so the
+        // file-load itself is not an undoable step.
+        // setLoadingContentCallback prevents the replaceAll transaction from
+        // falsely marking the tab as modified.
+        setLoadingContentCallback(true);
+        setContent(tab.content);
+        clearHistory();
+    }
 
     // Update modified state
     if (tab.modified) {
@@ -381,6 +400,7 @@ export function restoreTabsFromDrafts(drafts) {
             modified: draft.modified || false,
             filename: draft.filename || (draft.path ? draft.path.replace(/\\/g, '/').split('/').pop() : 'Untitled'),
             comments: [],
+            editorState: null,
         };
         tabs.push(tab);
 
@@ -388,6 +408,7 @@ export function restoreTabsFromDrafts(drafts) {
         if (index === 0) {
             activeTabId = tab.id;
             setContent(tab.content);
+            clearHistory();
         }
     });
 

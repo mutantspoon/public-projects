@@ -447,27 +447,19 @@ Rules:
             const apiKey = await getGeminiApiKey();
             if (!apiKey) return null;
 
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-                        systemInstruction: { parts: [{ text: systemPrompt }] },
-                        generationConfig: { maxOutputTokens: 16384, temperature: 0 },
-                    }),
-                }
-            );
+            // Route through Rust so the API key is never exposed in JS memory or URLs
+            const { invoke } = await import('@tauri-apps/api/core');
+            const data = await invoke('call_gemini', {
+                apiKey,
+                system: systemPrompt,
+                user: userMessage,
+                model: 'gemini-2.5-flash',
+            });
 
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                const msg = err?.error?.message || `HTTP ${response.status}`;
-                console.error('Gemini API error:', err);
-                throw new Error(`Gemini: ${msg}`);
+            if (data?.error) {
+                throw new Error(`Gemini: ${data.error.message || JSON.stringify(data.error)}`);
             }
 
-            const data = await response.json();
             rawResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         } else {
             const apiKey = await getLlmApiKey();
@@ -745,8 +737,9 @@ function renderFooter() {
         acceptAllBtn.addEventListener('click', async () => {
             const finalDoc = buildProposedDoc();
             const activeCommentIds = new Set(reviewActiveComments.map(c => c.id));
-            const { setContent } = await import('./editor.js');
+            const { setContent, clearHistory } = await import('./editor.js');
             await setContent(stripCommentTokens(finalDoc));
+            clearHistory();
             comments = comments.filter(c => !activeCommentIds.has(c.id));
             updateDecorations();
             if (onCommentsChangedCallback) onCommentsChangedCallback();
@@ -761,8 +754,9 @@ function renderFooter() {
         discardAllBtn.style.cssText = 'background: transparent; color: var(--text); border: 1px solid var(--border);';
         discardAllBtn.textContent = 'Discard All';
         discardAllBtn.addEventListener('click', async () => {
-            const { setContent } = await import('./editor.js');
+            const { setContent, clearHistory } = await import('./editor.js');
             await setContent(stripCommentTokens(reviewOriginal));
+            clearHistory();
             exitReviewMode();
         });
 
@@ -852,8 +846,9 @@ function renderCommentList() {
                     if (onCommentsChangedCallback) onCommentsChangedCallback();
                 }
                 if (aiSuggestions.length === 0) {
-                    const { setContent } = await import('./editor.js');
+                    const { setContent, clearHistory } = await import('./editor.js');
                     await setContent(stripCommentTokens(reviewOriginal));
+                    clearHistory();
                     updateDecorations();
                     exitReviewMode();
                     const { showSuccess } = await import('./toast.js');
@@ -870,8 +865,9 @@ function renderCommentList() {
                     reviewActiveComments = reviewActiveComments.filter(c => c.id !== comment.id);
                 }
                 if (aiSuggestions.length === 0) {
-                    const { setContent } = await import('./editor.js');
+                    const { setContent, clearHistory } = await import('./editor.js');
                     await setContent(stripCommentTokens(reviewOriginal));
+                    clearHistory();
                     updateDecorations();
                     exitReviewMode();
                 } else {
@@ -1053,9 +1049,10 @@ async function refreshReviewHighlights() {
 }
 
 async function rebuildAndRefresh() {
-    const { setContent } = await import('./editor.js');
+    const { setContent, clearHistory } = await import('./editor.js');
     const proposedDoc = buildProposedDoc();
     await setContent(stripCommentTokens(proposedDoc));
+    clearHistory();
     setTimeout(async () => {
         await refreshReviewHighlights();
         renderCommentList();
@@ -1064,7 +1061,7 @@ async function rebuildAndRefresh() {
 }
 
 async function startReviewMode(original, activeComments, changes) {
-    const { setContent } = await import('./editor.js');
+    const { setContent, clearHistory } = await import('./editor.js');
 
     reviewOriginal = original;
 
@@ -1095,8 +1092,10 @@ async function startReviewMode(original, activeComments, changes) {
         range: null,
     }));
 
-    // 3. Load proposed content into editor
+    // 3. Load proposed content into editor — clear history so review-mode
+    //    content changes are not undoable (use Accept/Revert instead).
     await setContent(stripCommentTokens(proposedDoc));
+    clearHistory();
 
     // 4. Make panel visible
     if (!panelVisible) {

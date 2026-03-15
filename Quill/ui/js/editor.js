@@ -9,6 +9,7 @@ import { history } from '@milkdown/plugin-history';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { getMarkdown, replaceAll, insert } from '@milkdown/utils';
 import { editorViewCtx, serializerCtx, parserCtx } from '@milkdown/core';
+import { EditorState } from 'prosemirror-state';
 
 // Prism syntax highlighting - uncomment after running: npm install @milkdown/plugin-prism prismjs
 // import { prism, prismConfig } from '@milkdown/plugin-prism';
@@ -167,6 +168,58 @@ export function setContent(markdown) {
 }
 
 /**
+ * Return the raw ProseMirror EditorView (for state save/restore).
+ */
+export function getEditorView() {
+    if (!editorInstance) return null;
+    try {
+        return editorInstance.ctx.get(editorViewCtx);
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Clear undo/redo history without changing the document.
+ * Rebuilds EditorState from scratch with the same doc and plugins,
+ * which resets all plugin states (including history) to their initial values.
+ * Call this after any programmatic setContent() that should not be undoable.
+ */
+export function clearHistory() {
+    if (!editorInstance) return;
+    try {
+        const view = getEditorView();
+        if (!view) return;
+        const { state } = view;
+        view.updateState(EditorState.create({
+            schema: state.schema,
+            doc: state.doc,
+            plugins: state.plugins,
+        }));
+    } catch (e) {
+        console.error('clearHistory:', e);
+    }
+}
+
+/**
+ * Restore a previously-saved ProseMirror EditorState (includes undo history).
+ * Used when switching back to a tab to restore its exact editing state.
+ * Returns true on success.
+ */
+export function restoreEditorState(editorState) {
+    if (!editorInstance || !editorState) return false;
+    try {
+        const view = getEditorView();
+        if (!view) return false;
+        view.updateState(editorState);
+        return true;
+    } catch (e) {
+        console.error('restoreEditorState:', e);
+        return false;
+    }
+}
+
+/**
  * Clear the editor content.
  */
 export function clearContent() {
@@ -229,6 +282,12 @@ export function focus() {
  */
 export function destroy() {
     if (editorInstance) {
+        const view = getEditorView();
+        if (view) {
+            view.dom.removeEventListener('keyup', updateSelectionInfo);
+            view.dom.removeEventListener('mouseup', updateSelectionInfo);
+            view.dom.removeEventListener('focus', updateSelectionInfo);
+        }
         editorInstance.destroy();
         editorInstance = null;
     }
