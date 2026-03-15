@@ -76,6 +76,38 @@ export async function setWordWrap(enabled) {
     return invoke('set_word_wrap', { enabled });
 }
 
+export async function getCommentsEnabled() {
+    return invoke('get_comments_enabled');
+}
+
+export async function setCommentsEnabled(enabled) {
+    return invoke('set_comments_enabled', { enabled });
+}
+
+export async function getLlmApiKey() {
+    return invoke('get_llm_api_key');
+}
+
+export async function setLlmApiKey(key) {
+    return invoke('set_llm_api_key', { key });
+}
+
+export async function getLlmProvider() {
+    return invoke('get_llm_provider');
+}
+
+export async function setLlmProvider(provider) {
+    return invoke('set_llm_provider', { provider });
+}
+
+export async function getGeminiApiKey() {
+    return invoke('get_gemini_api_key');
+}
+
+export async function setGeminiApiKey(key) {
+    return invoke('set_gemini_api_key', { key });
+}
+
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
 export async function getStartupFile() {

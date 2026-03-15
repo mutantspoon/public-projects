@@ -240,3 +240,10 @@ export function destroy() {
 export function getEditor() {
     return editorInstance;
 }
+
+/**
+ * Get the raw markdown content (alias for getContent, used by comments module).
+ */
+export function getRawMarkdown() {
+    return getContent();
+}

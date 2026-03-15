@@ -31,9 +31,31 @@ body {
     background-color: var(--toolbar);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
-    gap: 6px;
+    gap: 0;
     -webkit-app-region: drag;
     user-select: none;
+    overflow: hidden;
+}
+
+/* Scrollable left portion — clips when window is narrow */
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* Always-visible right group */
+.toolbar-group-pinned {
+    flex-shrink: 0;
+}
+
+/* Separator between left area and pinned group */
+.toolbar-separator-pinned {
+    flex-shrink: 0;
+    margin: 0 6px;
 }
 
 .toolbar-group {
@@ -1339,6 +1361,444 @@ body.drag-over::after {
     font-style: italic;
 }
 
+/* ─── Comment Panel ──────────────────────────────────────────────────── */
+
+.comment-panel {
+    width: 260px;
+    min-width: 220px;
+    max-width: 320px;
+    background-color: var(--toolbar);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease;
+}
+
+.comment-panel.hidden {
+    width: 0;
+    min-width: 0;
+    opacity: 0;
+    border-left: none;
+    overflow: hidden;
+}
+
+.comment-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.comment-panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.comment-panel-close {
+    background: none;
+    border: none;
+    color: var(--text);
+    opacity: 0.5;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0;
+    line-height: 1;
+}
+
+.comment-panel-close:hover {
+    opacity: 1;
+}
+
+.comment-input-area {
+    padding: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.comment-input-area.hidden {
+    display: none;
+}
+
+.comment-input-textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: var(--background);
+    color: var(--text);
+    font-size: 12px;
+    font-family: inherit;
+    resize: none;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.comment-input-submit {
+    align-self: flex-end;
+    height: 26px;
+    padding: 0 12px;
+    font-size: 12px;
+    border: none;
+    border-radius: 4px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+}
+
+.comment-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.comment-card {
+    background-color: var(--comment-card-bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--comment-accent);
+    border-radius: 6px;
+    padding: 10px 12px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.comment-note {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-word;
+    cursor: default;
+}
+
+.comment-note.editing {
+    outline: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 2px 4px;
+    cursor: text;
+    white-space: pre-wrap;
+}
+
+.comment-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.comment-action-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.1s, background-color 0.1s;
+}
+
+.comment-action-btn:hover {
+    opacity: 1;
+    background-color: var(--accent-subtle);
+}
+
+.comment-action-delete:hover {
+    background-color: rgba(244, 67, 54, 0.1);
+    border-color: rgba(244, 67, 54, 0.4);
+    color: #f44336;
+}
+
+.comment-empty {
+    padding: 16px 12px;
+    font-size: 12px;
+    color: var(--text);
+    opacity: 0.5;
+    text-align: center;
+}
+
+.comment-panel-footer {
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.comment-apply-btn {
+    width: 100%;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    background: var(--comment-accent);
+    color: #fff;
+    cursor: pointer;
+    transition: filter 0.1s;
+}
+
+.comment-apply-btn:hover {
+    filter: brightness(1.1);
+}
+
+.comment-apply-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    filter: none;
+}
+
+.comment-api-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.comment-api-toggle {
+    font-size: 11px;
+    color: var(--text);
+    opacity: 0.6;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 0;
+    text-align: left;
+    text-decoration: underline;
+}
+
+.comment-api-toggle:hover {
+    opacity: 1;
+}
+
+.comment-api-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.comment-provider-select {
+    height: 26px;
+    padding: 0 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background-color: var(--background);
+    color: var(--text);
+    font-size: 12px;
+    outline: none;
+    width: 100%;
+}
+
+.comment-api-form .comment-api-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.comment-api-form .comment-api-save {
+    width: 100%;
+}
+
+.comment-api-form.hidden {
+    display: none;
+}
+
+.comment-api-input {
+    flex: 1;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background-color: var(--background);
+    color: var(--text);
+    font-size: 12px;
+    outline: none;
+    min-width: 0;
+}
+
+.comment-api-input:focus {
+    border-color: var(--accent);
+}
+
+.comment-api-save {
+    height: 26px;
+    padding: 0 8px;
+    font-size: 11px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+/* Comment text highlight decoration */
+.comment-highlight {
+    background-color: var(--comment-bg);
+    border-bottom: 2px solid var(--comment-underline);
+    border-radius: 2px;
+}
+
+/* AI suggestion highlight (green) — applied when changes are accepted in review mode */
+.ai-suggestion-highlight {
+    background: rgba(34, 197, 94, 0.2);
+    border-bottom: 2px solid rgba(34, 197, 94, 0.7);
+    border-radius: 2px;
+}
+
+/* Pending selection while typing a new comment */
+.comment-pending-highlight {
+    background-color: rgba(255, 180, 0, 0.25);
+    border-bottom: 2px solid rgba(255, 180, 0, 0.8);
+    border-radius: 2px;
+    animation: pending-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pending-pulse {
+    0%, 100% { background-color: rgba(255, 180, 0, 0.25); }
+    50%       { background-color: rgba(255, 180, 0, 0.45); }
+}
+
+/* ─── Per-comment AI Review Mode (inside comment panel) ──────────────── */
+
+.comment-review {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.comment-review-header {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text);
+    opacity: 0.55;
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.comment-review-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Diff preview inside each review card */
+.comment-review-diff-preview {
+    font-size: 11px;
+    margin: 6px 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.comment-review-from {
+    background: rgba(220, 50, 50, 0.12);
+    color: var(--text);
+    opacity: 0.8;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    text-decoration: line-through;
+}
+
+.comment-review-arrow {
+    text-align: center;
+    opacity: 0.4;
+    font-size: 10px;
+}
+
+.comment-review-to {
+    background: rgba(40, 180, 80, 0.12);
+    color: var(--text);
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Card state: accepted */
+.comment-card.review-accepted {
+    border-left: 3px solid #22c55e;
+    opacity: 0.6;
+}
+
+/* Card state: skipped/reverted */
+.comment-card.review-skipped {
+    border-left: 3px solid #ef4444;
+    opacity: 0.6;
+}
+
+/* Accept button — green */
+.comment-action-accept {
+    color: #22c55e;
+}
+
+.comment-action-accept:hover {
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.4);
+}
+
+/* Revert button — red */
+.comment-action-revert {
+    color: #ef4444;
+}
+
+.comment-action-revert:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* Review footer */
+.comment-review-footer {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+}
+
+.comment-review-btn {
+    flex: 1;
+    height: 28px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+}
+
+.comment-review-discard {
+    background: transparent;
+    color: var(--text);
+}
+
+.comment-review-done {
+    background: var(--accent);
+    color: #fff;
+    border-color: transparent;
+}
+
 /* ─── Print / Export PDF ─────────────────────────────────────────────── */
 
 @media print {
@@ -1349,6 +1809,7 @@ body.drag-over::after {
     .find-bar,
     .recent-panel,
     .outline-panel,
+    .comment-panel,
     .toast-container,
     .modal-overlay {
         display: none !important;

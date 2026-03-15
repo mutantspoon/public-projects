@@ -4,8 +4,9 @@
  */
 
 import { initEditor, getContent, getWordCount, focus } from './editor.js';
-import { initToolbar, handleSave, applyTheme, handleSourceToggle, isInSourceMode, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks } from './toolbar.js';
-import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile, revealInFinder, savePdf } from './bridge.js';
+import { initToolbar, handleSave, applyTheme, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks } from './toolbar.js';
+import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile, revealInFinder, savePdf, getCommentsEnabled, setCommentsEnabled } from './bridge.js';
+import { initComments, installCommentPlugin, toggleCommentPanel, setTabComments, getTabComments, parseCommentsFromMarkdown, embedCommentsInMarkdown, startNewComment, setCommentsEnabledLocal } from './comments.js';
 import { generatePdfB64 } from './pdf-export.js';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
@@ -63,6 +64,19 @@ async function init() {
         onSelectionChange: handleSelectionChange,
     });
 
+    // Install comment plugin (must come after editor init)
+    installCommentPlugin();
+
+    // Initialize comments
+    let commentsEnabled = false;
+    try {
+        commentsEnabled = await getCommentsEnabled();
+    } catch (e) {}
+    initComments({
+        commentsEnabled,
+        onCommentsChanged: () => setActiveTabModified(true),
+    });
+
     // Initialize toolbar
     initToolbar({
         onContentChange: (content) => {
@@ -70,6 +84,7 @@ async function init() {
         },
         getIsModified: getIsModified,
         clearModified: clearModified,
+        getSaveContent: () => embedCommentsInMarkdown(getSourceContent()),
     });
 
     // Clear any old drafts and initialize tabs
@@ -81,6 +96,7 @@ async function init() {
         clearModified: clearModified,
         setLoadingContent: setLoadingContent,
         onSave: handleSave,
+        getTabComments: getTabComments,
     });
 
     // Set up tab callbacks for toolbar
@@ -206,6 +222,12 @@ function handleTabChange(tab) {
 
     // Update word count
     updateWordCount();
+
+    // Sync comments for this tab
+    setTabComments(tab.comments || []);
+    if ((!tab.comments || !tab.comments.length) && tab.content) {
+        parseCommentsFromMarkdown(tab.content);
+    }
 }
 
 /**
@@ -276,13 +298,6 @@ function updateSourcePosition() {
 // ─── Export PDF ─────────────────────────────────────────────────────────
 
 async function handleExportPdf() {
-    // If in source mode, temporarily switch to WYSIWYG so html2canvas can render
-    const wasInSourceMode = isInSourceMode();
-    if (wasInSourceMode) {
-        handleSourceToggle();
-        await new Promise(r => setTimeout(r, 80));
-    }
-
     try {
         showInfo('Generating PDF…');
         const dataB64 = await generatePdfB64();
@@ -298,8 +313,6 @@ async function handleExportPdf() {
         }
     } catch (e) {
         showError('PDF export failed: ' + e.message);
-    } finally {
-        if (wasInSourceMode) handleSourceToggle();
     }
 }
 
@@ -349,6 +362,7 @@ function setupFontSizeControls() {
 
 function setupViewModeButtons() {
     const outlineBtn = document.getElementById('btn-outline');
+    const commentsBtn = document.getElementById('btn-comments');
 
     if (outlineBtn) {
         outlineBtn.addEventListener('click', () => {
@@ -356,6 +370,63 @@ function setupViewModeButtons() {
             outlineBtn.classList.toggle('active', visible);
         });
     }
+
+    if (commentsBtn) {
+        commentsBtn.addEventListener('click', async () => {
+            const visible = toggleCommentPanel();
+            commentsBtn.classList.toggle('active', visible);
+            if (visible) {
+                commentsEnabled = true;
+                setCommentsEnabledLocal(true);
+                await setCommentsEnabled(true).catch(() => {});
+            }
+        });
+    }
+
+    // Editor right-click context menu for adding comments
+    // Use synchronous commentsEnabled check so e.preventDefault() fires before native menu
+    const editorEl = document.getElementById('editor');
+    if (editorEl) {
+        editorEl.addEventListener('contextmenu', (e) => {
+            if (!isInSourceMode() && commentsEnabled) {
+                e.preventDefault();
+                showEditorContextMenu(e.clientX, e.clientY);
+            }
+        });
+    }
+}
+
+let editorContextMenu = null;
+
+function showEditorContextMenu(x, y) {
+    if (!editorContextMenu) {
+        editorContextMenu = document.createElement('div');
+        editorContextMenu.className = 'context-menu';
+        editorContextMenu.id = 'editor-context-menu';
+
+        const addItem = document.createElement('div');
+        addItem.className = 'context-menu-item';
+        addItem.textContent = 'Add Comment';
+        addItem.addEventListener('click', () => {
+            editorContextMenu.classList.remove('visible');
+            startNewComment();
+        });
+        editorContextMenu.appendChild(addItem);
+        document.body.appendChild(editorContextMenu);
+
+        document.addEventListener('click', () => {
+            editorContextMenu?.classList.remove('visible');
+        }, true);
+    }
+
+    editorContextMenu.style.left = `${x}px`;
+    editorContextMenu.style.top = `${y}px`;
+    editorContextMenu.classList.add('visible');
+
+    // Nudge back on-screen
+    const r = editorContextMenu.getBoundingClientRect();
+    if (r.right > window.innerWidth) editorContextMenu.style.left = `${x - r.width}px`;
+    if (r.bottom > window.innerHeight) editorContextMenu.style.top = `${y - r.height}px`;
 }
 
 // ─── Recent Files Panel ─────────────────────────────────────────────────
@@ -624,11 +695,6 @@ function setupKeyboardShortcuts() {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const modKey = isMac ? 'metaKey' : 'ctrlKey';
 
-    // Source editor cursor position updates
-    const sourceEditor = document.getElementById('source-editor');
-    sourceEditor.addEventListener('keyup', updateSourcePosition);
-    sourceEditor.addEventListener('click', updateSourcePosition);
-
     // Use capture phase to handle shortcuts before ProseMirror
     document.addEventListener('keydown', async (e) => {
         // Alt+Z for word wrap toggle (works without modifier key)
@@ -651,6 +717,12 @@ function setupKeyboardShortcuts() {
 
         // Handle Shift+ combinations
         if (e.shiftKey) {
+            if (key === 'm' && !isInSourceMode()) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (commentsEnabled) startNewComment();
+                return;
+            }
             if (key === 's') {
                 e.preventDefault();
                 e.stopPropagation();
@@ -731,12 +803,6 @@ function setupKeyboardShortcuts() {
                     e.stopPropagation();
                     document.getElementById('btn-link').click();
                 }
-                break;
-
-            case '/':
-                e.preventDefault();
-                e.stopPropagation();
-                handleSourceToggle();
                 break;
 
             case '1':

@@ -30,6 +30,11 @@
     /* Tooltip */
     --tooltip-bg: #1c1c1c;
     --tooltip-text: #f0f0f0;
+    /* Comments */
+    --comment-bg: rgba(250, 204, 21, 0.2);
+    --comment-underline: #EAB308;
+    --comment-accent: #D97706;
+    --comment-card-bg: rgba(250, 204, 21, 0.05);
 }
 
 [data-theme='dark'] {
@@ -62,4 +67,9 @@
     /* Tooltip */
     --tooltip-bg: #2a2a2a;
     --tooltip-text: #e8e8e8;
+    /* Comments */
+    --comment-bg: rgba(234, 179, 8, 0.15);
+    --comment-underline: #CA8A04;
+    --comment-accent: #B45309;
+    --comment-card-bg: rgba(234, 179, 8, 0.04);
 }

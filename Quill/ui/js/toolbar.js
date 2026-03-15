@@ -39,6 +39,7 @@ import { setBlockType } from '@milkdown/prose/commands';
 let onContentChange = null;
 let getIsModified = null;
 let clearModifiedCallback = null;
+let getSaveContentCallback = null;
 let isSourceMode = false;
 
 /**
@@ -48,6 +49,7 @@ export function initToolbar(callbacks = {}) {
     onContentChange = callbacks.onContentChange;
     getIsModified = callbacks.getIsModified || (() => false);
     clearModifiedCallback = callbacks.clearModified || (() => {});
+    getSaveContentCallback = callbacks.getSaveContent || null;
 
     // Prevent all toolbar buttons from stealing focus from the editor
     document.querySelectorAll('.toolbar-btn').forEach(btn => {
@@ -80,17 +82,12 @@ export function initToolbar(callbacks = {}) {
     document.getElementById('btn-codeblock').addEventListener('click', handleCodeBlock);
     document.getElementById('btn-table').addEventListener('click', handleTable);
 
-    // Source mode toggle
-    document.getElementById('btn-source').addEventListener('click', handleSourceToggle);
-
     // Heading dropdown toggle
     setupHeadingDropdown();
 
     // Theme
     document.getElementById('btn-theme').addEventListener('click', handleThemeToggle);
 
-    // Source editor change handler
-    document.getElementById('source-editor').addEventListener('input', handleSourceInput);
 }
 
 // ─── Heading Dropdown ────────────────────────────────────────────────────
@@ -243,7 +240,7 @@ async function handleOpen() {
 }
 
 export async function handleSave() {
-    const content = getSourceContent();
+    const content = getSaveContentCallback ? getSaveContentCallback() : getSourceContent();
     const result = await saveFile(content);
     if (result.success) {
         clearModifiedCallback();

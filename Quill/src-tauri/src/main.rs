@@ -33,9 +33,18 @@ struct Settings {
     window_y: Option<i32>,
     #[serde(default)]
     recent_files: Vec<String>,
+    #[serde(default)]
+    comments_enabled: bool,
+    #[serde(default)]
+    llm_api_key: String,
+    #[serde(default = "default_llm_provider")]
+    llm_provider: String,
+    #[serde(default)]
+    gemini_api_key: String,
 }
 
 fn default_theme() -> String { "dark".into() }
+fn default_llm_provider() -> String { "anthropic".into() }
 fn default_font_size() -> u32 { 14 }
 fn default_true() -> bool { true }
 fn default_window_width() -> u32 { 1000 }
@@ -52,6 +61,10 @@ impl Default for Settings {
             window_x: None,
             window_y: None,
             recent_files: Vec::new(),
+            comments_enabled: false,
+            llm_api_key: String::new(),
+            llm_provider: default_llm_provider(),
+            gemini_api_key: String::new(),
         }
     }
 }
@@ -380,6 +393,7 @@ fn get_settings(state: State<'_, SharedState>) -> serde_json::Value {
         "theme": s.settings.theme,
         "font_size": s.settings.font_size,
         "word_wrap": s.settings.word_wrap,
+        "comments_enabled": s.settings.comments_enabled,
     })
 }
 
@@ -419,6 +433,62 @@ fn toggle_word_wrap(state: State<'_, SharedState>) -> serde_json::Value {
     let config_dir = s.config_dir.clone();
     save_settings(&config_dir, &s.settings);
     serde_json::json!({ "success": true, "word_wrap": word_wrap })
+}
+
+#[tauri::command]
+fn get_comments_enabled(state: State<'_, SharedState>) -> bool {
+    state.lock().unwrap().settings.comments_enabled
+}
+
+#[tauri::command]
+fn set_comments_enabled(enabled: bool, state: State<'_, SharedState>) -> serde_json::Value {
+    let mut s = state.lock().unwrap();
+    s.settings.comments_enabled = enabled;
+    let config_dir = s.config_dir.clone();
+    save_settings(&config_dir, &s.settings);
+    serde_json::json!({ "success": true, "comments_enabled": enabled })
+}
+
+#[tauri::command]
+fn get_llm_api_key(state: State<'_, SharedState>) -> String {
+    state.lock().unwrap().settings.llm_api_key.clone()
+}
+
+#[tauri::command]
+fn set_llm_api_key(key: String, state: State<'_, SharedState>) -> serde_json::Value {
+    let mut s = state.lock().unwrap();
+    s.settings.llm_api_key = key;
+    let config_dir = s.config_dir.clone();
+    save_settings(&config_dir, &s.settings);
+    serde_json::json!({ "success": true })
+}
+
+#[tauri::command]
+fn get_llm_provider(state: State<'_, SharedState>) -> String {
+    state.lock().unwrap().settings.llm_provider.clone()
+}
+
+#[tauri::command]
+fn set_llm_provider(provider: String, state: State<'_, SharedState>) -> serde_json::Value {
+    let mut s = state.lock().unwrap();
+    s.settings.llm_provider = provider;
+    let config_dir = s.config_dir.clone();
+    save_settings(&config_dir, &s.settings);
+    serde_json::json!({ "success": true })
+}
+
+#[tauri::command]
+fn get_gemini_api_key(state: State<'_, SharedState>) -> String {
+    state.lock().unwrap().settings.gemini_api_key.clone()
+}
+
+#[tauri::command]
+fn set_gemini_api_key(key: String, state: State<'_, SharedState>) -> serde_json::Value {
+    let mut s = state.lock().unwrap();
+    s.settings.gemini_api_key = key;
+    let config_dir = s.config_dir.clone();
+    save_settings(&config_dir, &s.settings);
+    serde_json::json!({ "success": true })
 }
 
 // ─── Window State Commands ────────────────────────────────────────────────────
@@ -521,6 +591,32 @@ async fn save_pdf(app: AppHandle, data_b64: String, filename: String) -> serde_j
     match fs::write(&path, &data) {
         Ok(_) => serde_json::json!({ "success": true, "path": path.to_string_lossy() }),
         Err(e) => serde_json::json!({ "success": false, "error": e.to_string() }),
+    }
+}
+
+#[tauri::command]
+async fn call_anthropic(api_key: String, system: String, user: String, model: String) -> serde_json::Value {
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "model": model,
+        "max_tokens": 8192,
+        "temperature": 0,
+        "system": system,
+        "messages": [{ "role": "user", "content": user }]
+    });
+    let res = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", &api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await;
+    match res {
+        Ok(r) => r.json::<serde_json::Value>().await.unwrap_or_else(|e| {
+            serde_json::json!({ "error": { "message": e.to_string() } })
+        }),
+        Err(e) => serde_json::json!({ "error": { "message": e.to_string() } }),
     }
 }
 
@@ -636,6 +732,14 @@ fn main() {
             set_font_size,
             set_word_wrap,
             toggle_word_wrap,
+            get_comments_enabled,
+            set_comments_enabled,
+            get_llm_api_key,
+            set_llm_api_key,
+            get_llm_provider,
+            set_llm_provider,
+            get_gemini_api_key,
+            set_gemini_api_key,
             get_window_size,
             save_window_size,
             get_window_position,
@@ -643,6 +747,7 @@ fn main() {
             get_startup_file,
             reveal_in_finder,
             save_pdf,
+            call_anthropic,
             force_close,
         ])
         .build(tauri::generate_context!())

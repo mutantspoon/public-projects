@@ -20,6 +20,7 @@ let getIsModifiedCallback = null;
 let clearModifiedCallback = null;
 let setLoadingContentCallback = null;
 let saveCallback = null;
+let getTabCommentsCallback = null;
 
 /**
  * Initialize tabs module with callbacks.
@@ -31,6 +32,7 @@ export function initTabs(callbacks = {}) {
     clearModifiedCallback = callbacks.clearModified || (() => {});
     setLoadingContentCallback = callbacks.setLoadingContent || (() => {});
     saveCallback = callbacks.onSave || (async () => false);
+    getTabCommentsCallback = callbacks.getTabComments || null;
 
     // Create initial untitled tab
     createTab();
@@ -54,6 +56,7 @@ export function createTab(options = {}) {
         content,
         modified,
         filename: filename || (path ? path.replace(/\\/g, '/').split('/').pop() : 'Untitled'),
+        comments: [],
     };
 
     tabs.push(tab);
@@ -79,6 +82,7 @@ export function switchToTab(tabId) {
         if (currentTab) {
             currentTab.content = onContentRequest ? onContentRequest() : getContent();
             currentTab.modified = getIsModifiedCallback();
+            currentTab.comments = getTabCommentsCallback ? getTabCommentsCallback() : [];
         }
     }
 
@@ -376,6 +380,7 @@ export function restoreTabsFromDrafts(drafts) {
             content: draft.content || '',
             modified: draft.modified || false,
             filename: draft.filename || (draft.path ? draft.path.replace(/\\/g, '/').split('/').pop() : 'Untitled'),
+            comments: [],
         };
         tabs.push(tab);
 
