@@ -22,10 +22,13 @@ if result.returncode != 0:
     sys.exit(result.returncode)
 print(result.stderr.strip())
 
-data_line = result.stdout.strip()
 html_path = DIR / "index.html"
 html = html_path.read_text(encoding="utf-8")
-html = re.sub(r'const DATA = \[.*?\];', data_line, html, flags=re.S)
+for line in result.stdout.strip().split('\n'):
+    if line.startswith('const DATA_DATE'):
+        html = re.sub(r'const DATA_DATE = ".*?";', line, html)
+    elif line.startswith('const DATA = '):
+        html = re.sub(r'const DATA = \[.*?\];', line, html, flags=re.S)
 html_path.write_text(html, encoding="utf-8")
 
 print("\nDone. Push to deploy:")

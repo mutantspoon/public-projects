@@ -74,5 +74,7 @@ records.sort(key=lambda x: x["s"], reverse=True)
 
 # ── Output ────────────────────────────────────────────────────────────────────
 json_str = json.dumps(records, separators=(",", ":"))
+today = datetime.now().strftime("%Y-%m-%d")
+print(f'const DATA_DATE = "{today}";')
 print(f"const DATA = {json_str};")
 print(f"Done — {len(records)} records written.", file=sys.stderr)
