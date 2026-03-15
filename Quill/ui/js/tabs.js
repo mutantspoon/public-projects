@@ -7,6 +7,7 @@ import { getContent, setContent, focus, getEditorView, clearHistory, restoreEdit
 import { setModified } from './bridge.js';
 import { showSaveDialog } from './dialog.js';
 import { showInfo } from './toast.js';
+import { stripCommentTokens } from './comments.js';
 
 // Tab state
 let tabs = [];
@@ -108,7 +109,7 @@ export function switchToTab(tabId) {
         // setLoadingContentCallback prevents the replaceAll transaction from
         // falsely marking the tab as modified.
         setLoadingContentCallback(true);
-        setContent(tab.content);
+        setContent(stripCommentTokens(tab.content));
         clearHistory();
     }
 
@@ -407,7 +408,7 @@ export function restoreTabsFromDrafts(drafts) {
         // Activate first tab
         if (index === 0) {
             activeTabId = tab.id;
-            setContent(tab.content);
+            setContent(stripCommentTokens(tab.content));
             clearHistory();
         }
     });

@@ -66,6 +66,12 @@ export function saveDrafts() {
         }));
     } catch (e) {
         console.error('Error saving drafts:', e);
+        // QuotaExceededError means localStorage is full — warn the user
+        if (e.name === 'QuotaExceededError' || e.code === 22) {
+            import('./toast.js').then(({ showError }) => {
+                showError('Autosave failed: storage quota exceeded. Consider saving your files manually.');
+            }).catch(() => {});
+        }
     }
 }
 

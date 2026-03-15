@@ -164,7 +164,7 @@ async function init() {
             if (okToClose) {
                 const api = await getApi();
                 // Don't await — window.destroy() fires before the invoke returns
-                api.force_close();
+                api.force_close().catch(() => {});
             }
         });
     } catch (e) {
@@ -194,6 +194,10 @@ function handleContentChange(markdown) {
         ignoreNextChanges--;
         updateWordCount();
         return;
+    }
+    if (ignoreNextChanges < 0) {
+        console.warn('ignoreNextChanges went negative — more change events fired during load than expected');
+        ignoreNextChanges = 0;
     }
 
     const tab = getActiveTab();
@@ -717,7 +721,7 @@ function setupKeyboardShortcuts() {
 
         // Handle Shift+ combinations
         if (e.shiftKey) {
-            if (key === 'm' && !isInSourceMode()) {
+            if (key === 'k' && !isInSourceMode()) {
                 e.preventDefault();
                 e.stopPropagation();
                 if (commentsEnabled) startNewComment();

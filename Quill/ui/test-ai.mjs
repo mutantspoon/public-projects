@@ -18,14 +18,26 @@ const ANTHROPIC_KEY = settings.llm_api_key;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function normalizeQuotes(t) {
+    return t.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+}
+
 function applyChanges(doc, changes) {
     let result = doc;
     for (const c of changes) {
         if (!c.find) {
             result = result.trimEnd() + (c.replace ? '\n\n' + c.replace : '');
         } else {
-            const idx = result.indexOf(c.find);
-            if (idx !== -1) {
+            let idx = result.indexOf(c.find);
+            if (idx === -1) {
+                // Fallback: normalize smart quotes (mirrors app's applyFindReplace)
+                const normResult = normalizeQuotes(result);
+                const normFind = normalizeQuotes(c.find);
+                idx = normResult.indexOf(normFind);
+                if (idx !== -1) {
+                    result = result.slice(0, idx) + c.replace + result.slice(idx + normFind.length);
+                }
+            } else {
                 result = result.slice(0, idx) + c.replace + result.slice(idx + c.find.length);
             }
         }
@@ -442,6 +454,27 @@ Finally, start the app using \`npm start\`.`,
             if (result.includes('`npm install`')) return '`npm install` not replaced';
             if (result.includes('`npm start`')) return '`npm start` not replaced';
             if (!result.includes('yarn')) return 'No yarn commands in result';
+            return null;
+        }
+    },
+
+    // ── Smart punctuation (regression: Anthropic normalizes curly quotes to ASCII) ──
+    {
+        name: 'Rewrite rambly text with smart apostrophe (test3.md)',
+        // U+2019 right single quotation mark in "i\u2019m" — Milkdown outputs this
+        // when rendering markdown. Anthropic normalizes it to ASCII ' in find strings,
+        // which previously caused a silent no-op. This test catches that regression.
+        doc: `I want to build a dog house, that is red with a roof, actually, i already have a small shed, maybe that should be converted to a dog house? i\u2019m not sure\u2026. should we go just buy a dog house? hard to tell actually. Hmmmm yeah my friend actually has a dog house for sale, we should just do that.`,
+        comments: ['make this less rambly'],
+        validate(changes, doc) {
+            if (changes.length === 0) return 'No changes returned';
+            for (const c of changes) {
+                if (c.find && !doc.includes(c.find) && !normalizeQuotes(doc).includes(normalizeQuotes(c.find))) {
+                    return `"find" not in doc: "${c.find}"`;
+                }
+            }
+            const result = applyChanges(doc, changes);
+            if (result === doc) return 'Document unchanged';
             return null;
         }
     },

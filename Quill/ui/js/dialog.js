@@ -55,6 +55,7 @@ export function promptForNote(placeholder = 'Enter comment...') {
         const textarea = document.createElement('textarea');
         textarea.style.cssText = 'width:100%;height:80px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--background);color:var(--text);font-size:13px;resize:none;outline:none;font-family:inherit;';
         textarea.placeholder = 'Add your note here...';
+        textarea.maxLength = 2000;
         messageEl.appendChild(label);
         messageEl.appendChild(textarea);
 

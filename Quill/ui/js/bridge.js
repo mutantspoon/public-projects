@@ -5,6 +5,14 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+function debounce(fn, ms) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), ms);
+    };
+}
+
 // ─── File Operations ───────────────────────────────────────────────────────────
 
 export async function newFile() {
@@ -64,8 +72,10 @@ export async function setTheme(theme) {
     return invoke('set_theme', { theme });
 }
 
+// Debounced: font size can change rapidly on held-down Cmd+/-
+const _setFontSizeDebounced = debounce((size) => invoke('set_font_size', { size }), 300);
 export async function setFontSize(size) {
-    return invoke('set_font_size', { size });
+    _setFontSizeDebounced(size);
 }
 
 export async function toggleWordWrap() {

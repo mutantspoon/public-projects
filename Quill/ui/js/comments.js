@@ -327,7 +327,14 @@ function reanchorComments() {
         let changed = false;
         comments.forEach(c => {
             if (c.anchorText && c.from == null) {
-                const range = findTextInDoc(view, c.anchorText);
+                // Normalize stored anchor text: raw file bytes may have trailing/leading
+                // whitespace per line that Milkdown strips when parsing markdown.
+                const normalizedAnchor = c.anchorText
+                    .split('\n')
+                    .map(l => l.trim())
+                    .filter(l => l.length > 0)
+                    .join('\n');
+                const range = findTextInDoc(view, normalizedAnchor);
                 if (range) {
                     c.from = range.from;
                     c.to   = range.to;
@@ -357,7 +364,7 @@ export function embedCommentsInMarkdown(markdown) {
 }
 
 // Strip all @quill-comment HTML comment tokens from a markdown string
-function stripCommentTokens(md) {
+export function stripCommentTokens(md) {
     return md
         .replace(/\s*<!--\s*@quill-comment:[\s\S]*?-->/g, '')
         .replace(/<!--\s*-->/g, '')  // bare empty comments left by AI
@@ -1007,10 +1014,28 @@ async function handleApplyWithAI() {
 
 // ─── Review Mode ──────────────────────────────────────────────────────────────
 
+// Normalize typographic quotes to ASCII so find strings from models that
+// convert smart quotes (e.g. Anthropic) still match editor content that uses them.
+function normalizeQuotes(text) {
+    return text
+        .replace(/[\u2018\u2019]/g, "'")   // ' ' → '
+        .replace(/[\u201C\u201D]/g, '"');   // " " → "
+}
+
 function applyFindReplace(doc, find, replace) {
     if (!find) return doc.trimEnd() + (replace ? '\n\n' + replace : '');
-    const idx = doc.indexOf(find);
-    if (idx === -1) return doc; // text not found — no-op
+    let idx = doc.indexOf(find);
+    if (idx === -1) {
+        // Fallback: normalize smart quotes on both sides and retry.
+        // Some models (Anthropic) convert curly quotes to straight ASCII quotes
+        // in their find strings, causing verbatim indexOf to fail.
+        const normDoc = normalizeQuotes(doc);
+        const normFind = normalizeQuotes(find);
+        idx = normDoc.indexOf(normFind);
+        if (idx === -1) return doc; // still not found — no-op
+        // Quote chars are always 1:1 substitutions so idx is valid in original doc
+        return doc.slice(0, idx) + replace + doc.slice(idx + normFind.length);
+    }
     return doc.slice(0, idx) + replace + doc.slice(idx + find.length);
 }
 

@@ -17,6 +17,8 @@ const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Settings {
+    #[serde(default = "default_settings_version")]
+    version: u32,
     #[serde(default = "default_theme")]
     theme: String,
     #[serde(default = "default_font_size")]
@@ -43,6 +45,8 @@ struct Settings {
     gemini_api_key: String,
 }
 
+const SETTINGS_VERSION: u32 = 1;
+fn default_settings_version() -> u32 { SETTINGS_VERSION }
 fn default_theme() -> String { "dark".into() }
 fn default_llm_provider() -> String { "anthropic".into() }
 fn default_font_size() -> u32 { 14 }
@@ -53,6 +57,7 @@ fn default_window_height() -> u32 { 700 }
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            version: SETTINGS_VERSION,
             theme: default_theme(),
             font_size: default_font_size(),
             word_wrap: default_true(),
