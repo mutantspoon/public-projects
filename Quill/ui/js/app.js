@@ -911,6 +911,12 @@ function setupTooltips() {
             let formattedShortcut;
             if (shortcut.startsWith('shift+')) {
                 formattedShortcut = shift + shortcut.slice(6).toUpperCase();
+            } else if (shortcut.startsWith('alt+')) {
+                const altKey = isMac ? '⌥' : 'Alt+';
+                text = `${label}  ${altKey}${shortcut.slice(4).toUpperCase()}`;
+                el.setAttribute('data-title', text);
+                el.setAttribute('aria-label', label);
+                return;
             } else {
                 formattedShortcut = shortcut.toUpperCase();
             }
