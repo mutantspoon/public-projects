@@ -899,37 +899,68 @@ function setupTooltips() {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const mod = isMac ? '⌘' : 'Ctrl+';
     const shift = isMac ? '⇧' : 'Shift+';
+    const alt = isMac ? '⌥' : 'Alt+';
 
-    // Build tooltip text and set data-title (read by CSS ::after) + aria-label.
-    // Only process .toolbar-btn elements; dropdown items are text and don't need tooltips.
+    // Create a single fixed tooltip div that escapes overflow:hidden on .toolbar
+    const tooltip = document.createElement('div');
+    tooltip.id = 'toolbar-tooltip';
+    document.body.appendChild(tooltip);
+
+    let showTimer = null;
+
+    function showTooltipEl(text, targetEl) {
+        tooltip.textContent = text;
+        // Measure width before positioning
+        tooltip.style.visibility = 'hidden';
+        tooltip.style.opacity = '0';
+        tooltip.classList.remove('visible');
+        // Temporarily make it measurable
+        tooltip.style.left = '-9999px';
+        tooltip.style.top = '0';
+        tooltip.style.visibility = '';
+
+        const rect = targetEl.getBoundingClientRect();
+        const tw = tooltip.offsetWidth;
+        let left = rect.left + rect.width / 2 - tw / 2;
+        left = Math.max(6, Math.min(left, window.innerWidth - tw - 6));
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = (rect.bottom + 7) + 'px';
+        tooltip.classList.add('visible');
+    }
+
+    function hideTooltip() {
+        clearTimeout(showTimer);
+        tooltip.classList.remove('visible');
+    }
+
+    // Build tooltip label and wire hover for each toolbar button
     document.querySelectorAll('.toolbar-btn[data-tooltip]').forEach(el => {
         const label = el.getAttribute('data-tooltip');
         const shortcut = el.getAttribute('data-shortcut');
         let text;
 
         if (shortcut) {
-            let formattedShortcut;
             if (shortcut.startsWith('shift+')) {
-                formattedShortcut = shift + shortcut.slice(6).toUpperCase();
+                text = `${label}  ${mod}${shift}${shortcut.slice(6).toUpperCase()}`;
             } else if (shortcut.startsWith('alt+')) {
-                const altKey = isMac ? '⌥' : 'Alt+';
-                text = `${label}  ${altKey}${shortcut.slice(4).toUpperCase()}`;
-                el.setAttribute('data-title', text);
-                el.setAttribute('aria-label', label);
-                return;
+                text = `${label}  ${alt}${shortcut.slice(4).toUpperCase()}`;
             } else {
-                formattedShortcut = shortcut.toUpperCase();
+                text = `${label}  ${mod}${shortcut.toUpperCase()}`;
             }
-            text = `${label}  ${mod}${formattedShortcut}`;
         } else {
             text = label;
         }
 
-        el.setAttribute('data-title', text);
         el.setAttribute('aria-label', label);
+
+        el.addEventListener('mouseenter', () => {
+            showTimer = setTimeout(() => showTooltipEl(text, el), 500);
+        });
+        el.addEventListener('mouseleave', hideTooltip);
+        el.addEventListener('mousedown', hideTooltip);
     });
 
-    // Status bar zoom buttons use native title (not toolbar-btn, no CSS tooltip)
+    // Status bar zoom buttons use native title
     const zoomIn = document.getElementById('btn-zoom-in');
     const zoomOut = document.getElementById('btn-zoom-out');
     if (zoomIn) zoomIn.title = `Zoom In (${mod}+)`;

@@ -142,37 +142,29 @@ body {
 }
 
 /* ─── Toolbar Tooltips ───────────────────────────────────────────────── */
+/* Uses a JS-positioned fixed div to escape overflow:hidden on .toolbar */
 
-.toolbar-btn[data-title]::after {
-    content: attr(data-title);
-    position: absolute;
-    top: calc(100% + 7px);
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 5px 9px;
+#toolbar-tooltip {
+    position: fixed;
+    z-index: 9999;
     background: var(--tooltip-bg);
     color: var(--tooltip-text);
+    padding: 5px 9px;
+    border-radius: 5px;
     font-size: 11px;
     font-weight: 400;
-    border-radius: 5px;
     white-space: nowrap;
     pointer-events: none;
-    opacity: 0;
-    z-index: 9999;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-    /* Hide immediately on mouse-out */
-    transition: opacity 0.1s ease 0s;
-}
-
-.toolbar-btn[data-title]:hover::after {
-    opacity: 1;
-    /* Short delay before showing, then quick fade in */
-    transition: opacity 0.1s ease 0.5s;
-}
-
-.toolbar-btn[data-title]:active::after {
     opacity: 0;
-    transition: none;
+    transition: opacity 0.1s ease;
+    /* Hidden until shown */
+    visibility: hidden;
+}
+
+#toolbar-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
 }
 
 .toolbar-separator {
