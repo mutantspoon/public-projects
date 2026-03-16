@@ -4,7 +4,7 @@
  */
 
 import { initEditor, getContent, getWordCount, focus } from './editor.js';
-import { initToolbar, handleSave, applyTheme, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks } from './toolbar.js';
+import { initToolbar, handleSave, applyTheme, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks, isInSourceMode } from './toolbar.js';
 import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile, revealInFinder, savePdf, getCommentsEnabled, setCommentsEnabled } from './bridge.js';
 import { initComments, installCommentPlugin, toggleCommentPanel, setTabComments, getTabComments, parseCommentsFromMarkdown, embedCommentsInMarkdown, startNewComment, setCommentsEnabledLocal } from './comments.js';
 import { generatePdfB64 } from './pdf-export.js';
@@ -19,6 +19,7 @@ import { initOutline, toggleOutline, updateOutline, isOutlineVisible } from './o
 // Track state
 let currentFontSize = 14;
 let ignoreNextChanges = 0;  // Counter to ignore change events after loading
+let commentsEnabled = false;
 
 // Export modified state checker - uses tabs as single source of truth
 export function getIsModified() {
@@ -68,7 +69,6 @@ async function init() {
     installCommentPlugin();
 
     // Initialize comments
-    let commentsEnabled = false;
     try {
         commentsEnabled = await getCommentsEnabled();
     } catch (e) {}
