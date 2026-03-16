@@ -910,14 +910,10 @@ function setupTooltips() {
 
     function showTooltipEl(text, targetEl) {
         tooltip.textContent = text;
-        // Measure width before positioning
-        tooltip.style.visibility = 'hidden';
-        tooltip.style.opacity = '0';
         tooltip.classList.remove('visible');
-        // Temporarily make it measurable
+        // Move off-screen to measure natural width (visibility:hidden still lays out)
         tooltip.style.left = '-9999px';
-        tooltip.style.top = '0';
-        tooltip.style.visibility = '';
+        tooltip.style.top = '0px';
 
         const rect = targetEl.getBoundingClientRect();
         const tw = tooltip.offsetWidth;
