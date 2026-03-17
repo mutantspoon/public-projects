@@ -1,7 +1,7 @@
 {
   "productName": "Quill",
   "version": "1.0.0",
-  "identifier": "com.quill.app",
+  "identifier": "com.jordanwalker.quill",
   "build": {
     "beforeDevCommand": "npm run build --prefix ui",
     "beforeBuildCommand": "npm run build --prefix ui",
