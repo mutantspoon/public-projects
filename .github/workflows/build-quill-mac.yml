@@ -57,13 +57,10 @@ jobs:
         working-directory: Quill
         run: npm install
 
-      - name: Build (Tauri)
+      - name: Build and sign (Tauri)
         working-directory: Quill
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx tauri build
 
       - name: Publish DMG to release
@@ -78,6 +75,21 @@ jobs:
             **Windows:** run the MSI installer.
           make_latest: true
           files: Quill/src-tauri/target/release/bundle/dmg/*.dmg
+
+      - name: Notarize (best-effort)
+        timeout-minutes: 20
+        continue-on-error: true
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          DMG=$(ls Quill/src-tauri/target/release/bundle/dmg/*.dmg)
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
 
   build-windows:
     runs-on: windows-latest
