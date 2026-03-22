@@ -34,6 +34,10 @@ export const showRectanglePanel = show => {
   document.getElementById('rectangle-panel').classList.toggle('hidden', !show);
 };
 
+export const showTextPanel = show => {
+  document.getElementById('text-panel').classList.toggle('hidden', !show);
+};
+
 export function initializeColorPalette() {
   const palette = document.getElementById('color-palette');
   palette.innerHTML = '';
@@ -66,6 +70,40 @@ export function initializeColorPalette() {
 
 export function updateColorSelection(selectedColor) {
   const palette = document.getElementById('color-palette');
+  palette.querySelectorAll('.color-swatch').forEach((swatch, i) => {
+    swatch.classList.toggle('selected', COLOR_PALETTE[i] === selectedColor);
+  });
+}
+
+export function initializeTextColorPalette() {
+  const palette = document.getElementById('text-color-palette');
+  palette.innerHTML = '';
+
+  COLOR_PALETTE.forEach(color => {
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch' + (color === '#2C3338' ? ' selected' : '');
+    swatch.style.backgroundColor = color;
+    swatch.onclick = () => {
+      updateTextColorSelection(color);
+      if (appState.selectedId) {
+        const obj = state.objects.find(o => o.id === appState.selectedId);
+        if (obj && (obj.type === 'text' || obj.type === 'label')) {
+          if (layerCallbacks.saveSnapshot) layerCallbacks.saveSnapshot();
+          obj.color = color;
+          const shape = contentLayer.findOne('#' + obj.id);
+          if (shape) {
+            shape.fill(color);
+            contentLayer.batchDraw();
+          }
+        }
+      }
+    };
+    palette.appendChild(swatch);
+  });
+}
+
+export function updateTextColorSelection(selectedColor) {
+  const palette = document.getElementById('text-color-palette');
   palette.querySelectorAll('.color-swatch').forEach((swatch, i) => {
     swatch.classList.toggle('selected', COLOR_PALETTE[i] === selectedColor);
   });

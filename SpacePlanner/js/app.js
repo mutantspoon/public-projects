@@ -18,7 +18,7 @@ import { handleRectangleClick, handleRectangleMove, clearRectangleGhost, resetRe
 import { handleTextClick, handleTextEdit, setTextToolCallbacks } from './tools/text-tool.js';
 import { newLayout, saveLayout, loadLayout, exportPNG, setFileIOCallbacks } from './file-io.js';
 import { handleKeyDown, handleKeyUp, setKeyboardCallbacks } from './keyboard.js';
-import { clearGhostShapes, getCursorForTool, getStatusForTool, showDimensionPanel, showRectanglePanel, initializeColorPalette, updateColorSelection, setLayerCallbacks, moveSelectedUp, moveSelectedDown } from './ui-helpers.js';
+import { clearGhostShapes, getCursorForTool, getStatusForTool, showDimensionPanel, showRectanglePanel, showTextPanel, initializeColorPalette, updateColorSelection, initializeTextColorPalette, updateTextColorSelection, setLayerCallbacks, moveSelectedUp, moveSelectedDown } from './ui-helpers.js';
 import { renderLayerPanel, setLayerPanelCallbacks, addLayer, hideContextMenu, handleContextMenuAction, moveSelectedToActiveLayer, updateMoveToLayerButton } from './layer-panel.js';
 
 // Initialize Konva
@@ -57,6 +57,8 @@ setSelectionCallbacks({
   renderAllObjects,
   showRectanglePanel,
   updateRectanglePanelFromSelection,
+  showTextPanel,
+  updateTextPanelFromSelection,
   updateMoveToLayerButton
 });
 
@@ -152,6 +154,13 @@ function updateRectanglePanelFromSelection(obj) {
   const heightInput = document.getElementById('rect-height-input');
   if (widthInput) widthInput.value = formatDimension(pixelsToInches(obj.width));
   if (heightInput) heightInput.value = formatDimension(pixelsToInches(obj.height));
+}
+
+function updateTextPanelFromSelection(obj) {
+  if (obj.type !== 'text' && obj.type !== 'label') return;
+  const sizeInput = document.getElementById('text-size-input');
+  if (sizeInput) sizeInput.value = obj.fontSize || 14;
+  updateTextColorSelection(obj.color || '#2C3338');
 }
 
 function updateDimensionInput(obj) {
@@ -308,6 +317,8 @@ document.getElementById('new-btn').addEventListener('click', newLayout);
 document.getElementById('save-btn').addEventListener('click', saveLayout);
 document.getElementById('load-btn').addEventListener('click', loadLayout);
 document.getElementById('export-btn').addEventListener('click', exportPNG);
+document.getElementById('copy-btn').addEventListener('click', copySelection);
+document.getElementById('paste-btn').addEventListener('click', pasteSelection);
 
 // Layer panel events
 document.getElementById('add-layer-btn').addEventListener('click', addLayer);
@@ -437,6 +448,20 @@ document.getElementById('rect-height-input').addEventListener('keypress', e => {
   }
 });
 
+// Text size input
+document.getElementById('text-size-input').addEventListener('change', e => {
+  const size = parseInt(e.target.value);
+  if (!size || size < 6 || size > 200 || !appState.selectedId) return;
+
+  const obj = state.objects.find(o => o.id === appState.selectedId);
+  if (!obj || (obj.type !== 'text' && obj.type !== 'label')) return;
+
+  saveSnapshot();
+  obj.fontSize = size;
+  renderAllObjects();
+  selectObject(obj.id);
+});
+
 // Keyboard events
 document.addEventListener('keydown', e => {
   const inInput = e.target.matches('input, select, textarea');
@@ -497,6 +522,7 @@ document.addEventListener('mouseup', (e) => {
 
 // ===== INIT =====
 initializeColorPalette();
+initializeTextColorPalette();
 renderLayerPanel();
 drawGrid();
 updateUndoRedoButtons();

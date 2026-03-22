@@ -242,22 +242,30 @@ function renderWall(obj, editable, isSelectTool) {
 // =============================================================================
 
 function renderRectangle(obj, editable, isSelectTool) {
+  // Render with center as position so rotation works correctly
+  const cx = obj.x + obj.width / 2;
+  const cy = obj.y + obj.height / 2;
+  const rotation = obj.rotation || 0;
+
   const rect = new Konva.Rect({
     id: obj.id,
-    x: obj.x,
-    y: obj.y,
+    x: cx,
+    y: cy,
     width: obj.width,
     height: obj.height,
+    offsetX: obj.width / 2,
+    offsetY: obj.height / 2,
+    rotation: rotation,
     stroke: obj.stroke || '#2C3338',
     strokeWidth: screenSize(obj.strokeWidth || WALL_THICKNESS),
     fill: obj.fill || '',
     draggable: isSelectTool && editable
   });
 
-  // Dimension labels
+  // Dimension labels (only for unrotated rectangles)
   let widthLabel = null, heightLabel = null;
 
-  if (appState.dimensionsVisible) {
+  if (appState.dimensionsVisible && !rotation) {
     const widthInches = pixelsToInches(obj.width);
     const heightInches = pixelsToInches(obj.height);
     const fontSize = screenSize(LABEL_FONT_SIZE);
@@ -297,33 +305,25 @@ function renderRectangle(obj, editable, isSelectTool) {
     contentLayer.add(widthLabel, heightLabel);
   }
 
-  // Track start position for snapping
-  let startX, startY;
-
-  rect.on('dragstart', () => {
-    startX = rect.x();
-    startY = rect.y();
-  });
-
   rect.on('dragmove', () => {
-    // Update dimension label positions during drag
+    // rect.x()/rect.y() is the center position
     if (widthLabel && heightLabel) {
       const fontSize = screenSize(LABEL_FONT_SIZE);
       const labelOffset = screenSize(12);
       const textHeight = fontSize * 1.2;
 
-      widthLabel.x(rect.x() + rect.width() / 2);
-      widthLabel.y(rect.y() + rect.height() + labelOffset);
-      heightLabel.x(rect.x() + rect.width() + labelOffset + textHeight / 2);
-      heightLabel.y(rect.y() + rect.height() / 2);
+      widthLabel.x(rect.x());
+      widthLabel.y(rect.y() + rect.height() / 2 + labelOffset);
+      heightLabel.x(rect.x() + rect.width() / 2 + labelOffset + textHeight / 2);
+      heightLabel.y(rect.y());
     }
   });
 
   rect.on('dragend', () => {
     saveSnapshot();
 
-    // Snap to grid
-    const snapped = snapPointToGrid(rect.x(), rect.y());
+    // rect.x()/rect.y() is center; snap the top-left corner to grid
+    const snapped = snapPointToGrid(rect.x() - obj.width / 2, rect.y() - obj.height / 2);
     obj.x = snapped.x;
     obj.y = snapped.y;
 
@@ -379,6 +379,7 @@ function renderRectangle(obj, editable, isSelectTool) {
 // =============================================================================
 
 function renderText(obj, editable, isSelectTool) {
+  // Create at obj.x/obj.y initially; will adjust to center-based below
   const text = new Konva.Text({
     id: obj.id,
     x: obj.x,
@@ -387,20 +388,23 @@ function renderText(obj, editable, isSelectTool) {
     fontSize: obj.fontSize || 14,
     fill: obj.color || '#2C3338',
     fontStyle: obj.fontStyle || 'bold',
+    rotation: obj.rotation || 0,
     draggable: isSelectTool && editable
   });
 
-  let startX, startY;
-
-  text.on('dragstart', () => {
-    startX = text.x();
-    startY = text.y();
-  });
+  // Shift to center-based position so rotation is around the text center
+  const tw = text.width();
+  const th = text.height();
+  text.offsetX(tw / 2);
+  text.offsetY(th / 2);
+  text.x(obj.x + tw / 2);
+  text.y(obj.y + th / 2);
 
   text.on('dragend', () => {
     saveSnapshot();
 
-    const snapped = snapPointToGrid(text.x(), text.y());
+    // text.x()/text.y() is center; snap the top-left corner to grid
+    const snapped = snapPointToGrid(text.x() - tw / 2, text.y() - th / 2);
     obj.x = snapped.x;
     obj.y = snapped.y;
 

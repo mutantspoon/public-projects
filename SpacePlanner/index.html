@@ -53,32 +53,44 @@
 <body class="bg-cream-100 font-sans">
   <div id="container"></div>
 
-  <!-- Left Toolbar -->
-  <div id="toolbar" class="fixed left-5 top-5 bg-cream-200 rounded-lg shadow-lg border border-cream-300 p-4 z-50 w-[140px]">
-    <div class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide mb-3">Tools</div>
-    <div class="space-y-1">
-      <button class="tool-button active w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="select">
-        <span class="opacity-60 mr-1">&#10148;</span> Select
-      </button>
-      <button class="tool-button w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="wall">
-        <span class="opacity-60 mr-1">&#9644;</span> Wall
-      </button>
-      <button class="tool-button w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="rectangle">
-        <span class="opacity-60 mr-1">&#9634;</span> Rect
-      </button>
-      <button class="tool-button w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="text">
-        <span class="opacity-60 mr-1">T</span> Text
-      </button>
+  <!-- Right Panel (all controls) -->
+  <div id="top-controls" class="fixed right-5 top-5 bg-cream-200 rounded-lg shadow-lg border border-cream-300 p-4 z-50 w-[220px] overflow-y-auto" style="max-height: calc(100vh - 40px);">
+
+    <!-- File Controls -->
+    <div class="mb-3">
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-2">File</label>
+      <button id="new-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">New</button>
+      <button id="save-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">Save</button>
+      <button id="load-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">Load</button>
+      <button id="export-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-sage-400 bg-sage-400 text-cream-100 hover:bg-sage-500 transition-all font-medium">Export PNG</button>
+    </div>
+
+    <div class="border-t border-cream-300 mb-3"></div>
+
+    <!-- Tools -->
+    <div class="mb-3">
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-2">Tools</label>
+      <div class="grid grid-cols-2 gap-1 mb-1">
+        <button class="tool-button active px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="select">
+          <span class="opacity-60 mr-0.5">&#10148;</span>Select
+        </button>
+        <button class="tool-button px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="wall">
+          <span class="opacity-60 mr-0.5">&#9644;</span>Wall
+        </button>
+        <button class="tool-button px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="rectangle">
+          <span class="opacity-60 mr-0.5">&#9634;</span>Rect
+        </button>
+        <button class="tool-button px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="text">
+          <span class="opacity-60 mr-0.5">T</span>Text
+        </button>
+      </div>
       <button class="tool-button w-full px-2 py-2 text-xs text-left rounded border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all" data-tool="eraser">
-        <span class="opacity-60 mr-1">&#10005;</span> Eraser
+        <span class="opacity-60 mr-0.5">&#10005;</span>Eraser
       </button>
     </div>
-  </div>
 
-  <!-- Right Panel -->
-  <div id="top-controls" class="fixed right-5 top-5 bg-cream-200 rounded-lg shadow-lg border border-cream-300 p-4 z-50 w-[220px]">
-    <!-- Dimension Panel (hidden by default) -->
-    <div id="dimension-panel" class="hidden pb-3 mb-3 border-b border-cream-300">
+    <!-- Dimension Panel (hidden by default - shown when wall selected) -->
+    <div id="dimension-panel" class="hidden border-t border-cream-300 pt-3 mb-3">
       <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-2">Dimensions</label>
       <input type="text" id="dimension-input" placeholder="e.g., 10' 6&quot;"
         class="w-full px-3 py-2 text-sm border-2 border-cream-300 rounded-md bg-cream-100 text-slate-700 focus:border-sage-400 focus:outline-none">
@@ -86,8 +98,7 @@
     </div>
 
     <!-- Rectangle Panel (hidden by default) -->
-    <div id="rectangle-panel" class="hidden pb-3 mb-3 border-b border-cream-300">
-      <!-- Dimensions (shown when rectangle selected) -->
+    <div id="rectangle-panel" class="hidden border-t border-cream-300 pt-3 mb-3">
       <div id="rect-dimensions" class="mb-2">
         <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-1">Dimensions</label>
         <div class="grid grid-cols-2 gap-1">
@@ -114,12 +125,26 @@
       </div>
       <div id="color-palette" class="grid grid-cols-8 gap-0.5 mb-2"></div>
 
-      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-1">Layer</label>
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-1">Layer Order</label>
       <div class="grid grid-cols-2 gap-1">
         <button id="move-up-btn" class="px-2 py-1 text-[10px] rounded border border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all">Move Up</button>
         <button id="move-down-btn" class="px-2 py-1 text-[10px] rounded border border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all">Move Down</button>
       </div>
     </div>
+
+    <!-- Text Panel (hidden by default) -->
+    <div id="text-panel" class="hidden border-t border-cream-300 pt-3 mb-3">
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-2">Text</label>
+      <div class="mb-2">
+        <label class="text-[9px] text-slate-500 block mb-1">Size (px)</label>
+        <input type="number" id="text-size-input" min="6" max="200" step="1" value="14"
+          class="w-full px-2 py-1 text-xs border border-cream-300 rounded bg-cream-100 text-slate-700 focus:border-sage-400 focus:outline-none">
+      </div>
+      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-1">Color</label>
+      <div id="text-color-palette" class="grid grid-cols-8 gap-0.5"></div>
+    </div>
+
+    <div class="border-t border-cream-300 mb-3"></div>
 
     <!-- View Controls -->
     <div class="mb-3">
@@ -135,31 +160,23 @@
       <div class="grid grid-cols-2 gap-1.5">
         <button id="undo-btn" class="px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">Undo</button>
         <button id="redo-btn" class="px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">Redo</button>
+        <button id="copy-btn" class="px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all">Copy</button>
+        <button id="paste-btn" class="px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all">Paste</button>
       </div>
     </div>
 
-    <!-- File Controls -->
-    <div>
-      <label class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide block mb-2">File</label>
-      <button id="new-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">New</button>
-      <button id="save-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">Save</button>
-      <button id="load-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all mb-1.5">Load</button>
-      <button id="export-btn" class="w-full px-3 py-2 text-xs rounded-md border-2 border-sage-400 bg-sage-400 text-cream-100 hover:bg-sage-500 transition-all font-medium">Export PNG</button>
-    </div>
-  </div>
-
-  <!-- Layer Panel (Bottom Left) -->
-  <div id="layer-panel" class="fixed left-5 bottom-12 bg-cream-200 rounded-lg shadow-lg border border-cream-300 z-50 w-[220px]">
-    <div class="flex items-center justify-between px-3 py-2 border-b border-cream-300">
-      <span class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Layers</span>
-      <button id="add-layer-btn" class="w-5 h-5 text-xs rounded border border-cream-300 bg-cream-100 text-slate-600 hover:bg-cream-200 hover:border-slate-400 transition-all" title="Add Layer">+</button>
-    </div>
-    <div id="layer-list" class="max-h-[200px] overflow-y-auto">
-      <!-- Layer rows rendered by JS -->
-    </div>
-    <div class="px-2 py-2 border-t border-cream-300">
+    <!-- Layers -->
+    <div class="border-t border-cream-300 pt-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Layers</span>
+        <button id="add-layer-btn" class="w-5 h-5 text-xs rounded border border-cream-300 bg-cream-100 text-slate-600 hover:bg-cream-200 hover:border-slate-400 transition-all" title="Add Layer">+</button>
+      </div>
+      <div id="layer-list" class="max-h-[180px] overflow-y-auto border border-cream-300 rounded mb-2 bg-cream-100">
+        <!-- Layer rows rendered by JS -->
+      </div>
       <button id="move-to-layer-btn" class="w-full px-2 py-1 text-[10px] rounded border border-cream-300 bg-cream-100 text-slate-700 hover:bg-cream-200 hover:border-slate-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>Move to Layer</button>
     </div>
+
   </div>
 
   <!-- Layer Context Menu -->

@@ -24,6 +24,8 @@ let callbacks = {
   renderAllObjects: null,
   showRectanglePanel: null,
   updateRectanglePanelFromSelection: null,
+  showTextPanel: null,
+  updateTextPanelFromSelection: null,
   updateMoveToLayerButton: null
 };
 
@@ -64,13 +66,17 @@ export function selectObject(id) {
   drawHighlight(obj);
   if (obj.type === 'wall') {
     createWallHandles(obj);
+  } else if (obj.type === 'rectangle' || obj.type === 'text' || obj.type === 'label') {
+    createRotateHandle(obj);
   }
-  // Rectangles and text: NO handles, just highlight
 
-  // Show rectangle panel if applicable
+  // Show context panel if applicable
   if (obj.type === 'rectangle') {
     if (callbacks.showRectanglePanel) callbacks.showRectanglePanel(true);
     if (callbacks.updateRectanglePanelFromSelection) callbacks.updateRectanglePanelFromSelection(obj);
+  } else if (obj.type === 'text' || obj.type === 'label') {
+    if (callbacks.showTextPanel) callbacks.showTextPanel(true);
+    if (callbacks.updateTextPanelFromSelection) callbacks.updateTextPanelFromSelection(obj);
   }
 
   if (callbacks.updateMoveToLayerButton) callbacks.updateMoveToLayerButton();
@@ -80,9 +86,11 @@ export function selectObject(id) {
 export function deselectObject() {
   clearHighlights();
   clearHandles();
+  clearRotateHandle();
   clearMultiDragGroup();
 
   if (callbacks.showRectanglePanel) callbacks.showRectanglePanel(false);
+  if (callbacks.showTextPanel) callbacks.showTextPanel(false);
 
   appState.selectedId = null;
   appState.selectedIds = [];
@@ -121,11 +129,16 @@ function drawHighlight(obj) {
       listening: false
     });
   } else if (obj.type === 'rectangle') {
+    const cx = obj.x + obj.width / 2;
+    const cy = obj.y + obj.height / 2;
     highlight = new Konva.Rect({
-      x: obj.x - pad,
-      y: obj.y - pad,
+      x: cx,
+      y: cy,
+      offsetX: obj.width / 2 + pad,
+      offsetY: obj.height / 2 + pad,
       width: obj.width + pad * 2,
       height: obj.height + pad * 2,
+      rotation: obj.rotation || 0,
       stroke: '#528A81',
       strokeWidth: stroke,
       dash: dash,
@@ -133,13 +146,18 @@ function drawHighlight(obj) {
     });
   } else if (obj.type === 'text' || obj.type === 'label') {
     const shape = contentLayer.findOne('#' + obj.id);
-    const width = shape ? shape.width() : 50;
-    const height = shape ? shape.height() : 20;
+    const tw = shape ? shape.width() : 50;
+    const th = shape ? shape.height() : 20;
+    const cx = obj.x + tw / 2;
+    const cy = obj.y + th / 2;
     highlight = new Konva.Rect({
-      x: obj.x - pad,
-      y: obj.y - pad,
-      width: width + pad * 2,
-      height: height + pad * 2,
+      x: cx,
+      y: cy,
+      offsetX: tw / 2 + pad,
+      offsetY: th / 2 + pad,
+      width: tw + pad * 2,
+      height: th + pad * 2,
+      rotation: obj.rotation || 0,
       stroke: '#528A81',
       strokeWidth: stroke,
       dash: dash,
@@ -256,8 +274,110 @@ export function refreshSelectionUI() {
     drawHighlight(obj);
     if (obj.type === 'wall') {
       createWallHandles(obj);
+    } else if (obj.type === 'rectangle' || obj.type === 'text' || obj.type === 'label') {
+      clearRotateHandle();
+      createRotateHandle(obj);
     }
   }
+}
+
+// =============================================================================
+// ROTATE HANDLE (rectangles and text only)
+// =============================================================================
+
+let rotateHandle = null;
+let rotateLine = null;
+
+function getObjCenter(obj) {
+  if (obj.type === 'rectangle') {
+    return { cx: obj.x + obj.width / 2, cy: obj.y + obj.height / 2 };
+  }
+  const shape = contentLayer.findOne('#' + obj.id);
+  const tw = shape ? shape.width() : 50;
+  const th = shape ? shape.height() : 20;
+  return { cx: obj.x + tw / 2, cy: obj.y + th / 2 };
+}
+
+function getObjHalfSize(obj) {
+  if (obj.type === 'rectangle') {
+    return Math.max(obj.width / 2, obj.height / 2);
+  }
+  const shape = contentLayer.findOne('#' + obj.id);
+  const tw = shape ? shape.width() : 50;
+  const th = shape ? shape.height() : 20;
+  return Math.max(tw / 2, th / 2);
+}
+
+function createRotateHandle(obj) {
+  clearRotateHandle();
+
+  const { cx, cy } = getObjCenter(obj);
+  const halfSize = getObjHalfSize(obj);
+  const rot = obj.rotation || 0;
+
+  // Position handle above the shape along its local "up" axis
+  const angleRad = (rot - 90) * Math.PI / 180;
+  const handleDist = halfSize + screenSize(28);
+  const hx = cx + Math.cos(angleRad) * handleDist;
+  const hy = cy + Math.sin(angleRad) * handleDist;
+
+  rotateLine = new Konva.Line({
+    points: [cx, cy, hx, hy],
+    stroke: '#528A81',
+    strokeWidth: screenSize(1),
+    dash: [screenSize(4), screenSize(3)],
+    listening: false
+  });
+  uiLayer.add(rotateLine);
+
+  rotateHandle = new Konva.Circle({
+    x: hx,
+    y: hy,
+    radius: screenSize(HANDLE_RADIUS + 2),
+    fill: '#F3C044',
+    stroke: '#2D453E',
+    strokeWidth: screenSize(HANDLE_STROKE),
+    draggable: true,
+    name: 'rotate-handle'
+  });
+
+  rotateHandle.on('dragmove', () => {
+    const obj = state.objects.find(o => o.id === currentObjectId);
+    if (!obj) return;
+
+    const { cx, cy } = getObjCenter(obj);
+
+    const dx = rotateHandle.x() - cx;
+    const dy = rotateHandle.y() - cy;
+    const rawAngle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+    const snapped = Math.round(rawAngle / 5) * 5;
+    obj.rotation = ((snapped % 360) + 360) % 360;
+
+    rotateLine.points([cx, cy, rotateHandle.x(), rotateHandle.y()]);
+
+    if (callbacks.renderAllObjects) callbacks.renderAllObjects();
+    drawHighlight(obj);
+    uiLayer.batchDraw();
+  });
+
+  rotateHandle.on('dragend', () => {
+    saveSnapshot();
+    const obj = state.objects.find(o => o.id === currentObjectId);
+    if (obj) {
+      if (callbacks.renderAllObjects) callbacks.renderAllObjects();
+      drawHighlight(obj);
+      createRotateHandle(obj);
+    }
+    uiLayer.batchDraw();
+  });
+
+  uiLayer.add(rotateHandle);
+  uiLayer.batchDraw();
+}
+
+function clearRotateHandle() {
+  if (rotateHandle) { rotateHandle.destroy(); rotateHandle = null; }
+  if (rotateLine) { rotateLine.destroy(); rotateLine = null; }
 }
 
 // =============================================================================
@@ -505,17 +625,26 @@ function drawMultiHighlights(objects) {
         stroke: '#528A81', strokeWidth: stroke, dash: dash, listening: false
       });
     } else if (obj.type === 'rectangle') {
+      const cx = obj.x + obj.width / 2;
+      const cy = obj.y + obj.height / 2;
       highlight = new Konva.Rect({
-        x: obj.x - pad, y: obj.y - pad,
+        x: cx, y: cy,
+        offsetX: obj.width / 2 + pad, offsetY: obj.height / 2 + pad,
         width: obj.width + pad * 2, height: obj.height + pad * 2,
+        rotation: obj.rotation || 0,
         stroke: '#528A81', strokeWidth: stroke, dash: dash, listening: false
       });
     } else if (obj.type === 'text' || obj.type === 'label') {
       const shape = contentLayer.findOne('#' + obj.id);
+      const tw = shape ? shape.width() : 50;
+      const th = shape ? shape.height() : 20;
+      const cx = obj.x + tw / 2;
+      const cy = obj.y + th / 2;
       highlight = new Konva.Rect({
-        x: obj.x - pad, y: obj.y - pad,
-        width: (shape ? shape.width() : 50) + pad * 2,
-        height: (shape ? shape.height() : 20) + pad * 2,
+        x: cx, y: cy,
+        offsetX: tw / 2 + pad, offsetY: th / 2 + pad,
+        width: tw + pad * 2, height: th + pad * 2,
+        rotation: obj.rotation || 0,
         stroke: '#528A81', strokeWidth: stroke, dash: dash, listening: false
       });
     }

@@ -233,6 +233,8 @@
     renderAllObjects: null,
     showRectanglePanel: null,
     updateRectanglePanelFromSelection: null,
+    showTextPanel: null,
+    updateTextPanelFromSelection: null,
     updateMoveToLayerButton: null
   };
   function setSelectionCallbacks(cb) {
@@ -256,10 +258,15 @@
     drawHighlight(obj);
     if (obj.type === "wall") {
       createWallHandles(obj);
+    } else if (obj.type === "rectangle" || obj.type === "text" || obj.type === "label") {
+      createRotateHandle(obj);
     }
     if (obj.type === "rectangle") {
       if (callbacks.showRectanglePanel) callbacks.showRectanglePanel(true);
       if (callbacks.updateRectanglePanelFromSelection) callbacks.updateRectanglePanelFromSelection(obj);
+    } else if (obj.type === "text" || obj.type === "label") {
+      if (callbacks.showTextPanel) callbacks.showTextPanel(true);
+      if (callbacks.updateTextPanelFromSelection) callbacks.updateTextPanelFromSelection(obj);
     }
     if (callbacks.updateMoveToLayerButton) callbacks.updateMoveToLayerButton();
     updateStatusBar(`Selected: ${obj.type}`);
@@ -267,8 +274,10 @@
   function deselectObject() {
     clearHighlights();
     clearHandles();
+    clearRotateHandle();
     clearMultiDragGroup();
     if (callbacks.showRectanglePanel) callbacks.showRectanglePanel(false);
+    if (callbacks.showTextPanel) callbacks.showTextPanel(false);
     appState.selectedId = null;
     appState.selectedIds = [];
     currentObjectId = null;
@@ -297,11 +306,16 @@
         listening: false
       });
     } else if (obj.type === "rectangle") {
+      const cx = obj.x + obj.width / 2;
+      const cy = obj.y + obj.height / 2;
       highlight = new Konva.Rect({
-        x: obj.x - pad,
-        y: obj.y - pad,
+        x: cx,
+        y: cy,
+        offsetX: obj.width / 2 + pad,
+        offsetY: obj.height / 2 + pad,
         width: obj.width + pad * 2,
         height: obj.height + pad * 2,
+        rotation: obj.rotation || 0,
         stroke: "#528A81",
         strokeWidth: stroke,
         dash,
@@ -309,13 +323,18 @@
       });
     } else if (obj.type === "text" || obj.type === "label") {
       const shape = contentLayer.findOne("#" + obj.id);
-      const width = shape ? shape.width() : 50;
-      const height = shape ? shape.height() : 20;
+      const tw = shape ? shape.width() : 50;
+      const th = shape ? shape.height() : 20;
+      const cx = obj.x + tw / 2;
+      const cy = obj.y + th / 2;
       highlight = new Konva.Rect({
-        x: obj.x - pad,
-        y: obj.y - pad,
-        width: width + pad * 2,
-        height: height + pad * 2,
+        x: cx,
+        y: cy,
+        offsetX: tw / 2 + pad,
+        offsetY: th / 2 + pad,
+        width: tw + pad * 2,
+        height: th + pad * 2,
+        rotation: obj.rotation || 0,
         stroke: "#528A81",
         strokeWidth: stroke,
         dash,
@@ -397,7 +416,94 @@
       drawHighlight(obj);
       if (obj.type === "wall") {
         createWallHandles(obj);
+      } else if (obj.type === "rectangle" || obj.type === "text" || obj.type === "label") {
+        clearRotateHandle();
+        createRotateHandle(obj);
       }
+    }
+  }
+  var rotateHandle = null;
+  var rotateLine = null;
+  function getObjCenter(obj) {
+    if (obj.type === "rectangle") {
+      return { cx: obj.x + obj.width / 2, cy: obj.y + obj.height / 2 };
+    }
+    const shape = contentLayer.findOne("#" + obj.id);
+    const tw = shape ? shape.width() : 50;
+    const th = shape ? shape.height() : 20;
+    return { cx: obj.x + tw / 2, cy: obj.y + th / 2 };
+  }
+  function getObjHalfSize(obj) {
+    if (obj.type === "rectangle") {
+      return Math.max(obj.width / 2, obj.height / 2);
+    }
+    const shape = contentLayer.findOne("#" + obj.id);
+    const tw = shape ? shape.width() : 50;
+    const th = shape ? shape.height() : 20;
+    return Math.max(tw / 2, th / 2);
+  }
+  function createRotateHandle(obj) {
+    clearRotateHandle();
+    const { cx, cy } = getObjCenter(obj);
+    const halfSize = getObjHalfSize(obj);
+    const rot = obj.rotation || 0;
+    const angleRad = (rot - 90) * Math.PI / 180;
+    const handleDist = halfSize + screenSize(28);
+    const hx = cx + Math.cos(angleRad) * handleDist;
+    const hy = cy + Math.sin(angleRad) * handleDist;
+    rotateLine = new Konva.Line({
+      points: [cx, cy, hx, hy],
+      stroke: "#528A81",
+      strokeWidth: screenSize(1),
+      dash: [screenSize(4), screenSize(3)],
+      listening: false
+    });
+    uiLayer.add(rotateLine);
+    rotateHandle = new Konva.Circle({
+      x: hx,
+      y: hy,
+      radius: screenSize(HANDLE_RADIUS + 2),
+      fill: "#F3C044",
+      stroke: "#2D453E",
+      strokeWidth: screenSize(HANDLE_STROKE),
+      draggable: true,
+      name: "rotate-handle"
+    });
+    rotateHandle.on("dragmove", () => {
+      const obj2 = state.objects.find((o) => o.id === currentObjectId);
+      if (!obj2) return;
+      const { cx: cx2, cy: cy2 } = getObjCenter(obj2);
+      const dx = rotateHandle.x() - cx2;
+      const dy = rotateHandle.y() - cy2;
+      const rawAngle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+      const snapped = Math.round(rawAngle / 5) * 5;
+      obj2.rotation = (snapped % 360 + 360) % 360;
+      rotateLine.points([cx2, cy2, rotateHandle.x(), rotateHandle.y()]);
+      if (callbacks.renderAllObjects) callbacks.renderAllObjects();
+      drawHighlight(obj2);
+      uiLayer.batchDraw();
+    });
+    rotateHandle.on("dragend", () => {
+      saveSnapshot();
+      const obj2 = state.objects.find((o) => o.id === currentObjectId);
+      if (obj2) {
+        if (callbacks.renderAllObjects) callbacks.renderAllObjects();
+        drawHighlight(obj2);
+        createRotateHandle(obj2);
+      }
+      uiLayer.batchDraw();
+    });
+    uiLayer.add(rotateHandle);
+    uiLayer.batchDraw();
+  }
+  function clearRotateHandle() {
+    if (rotateHandle) {
+      rotateHandle.destroy();
+      rotateHandle = null;
+    }
+    if (rotateLine) {
+      rotateLine.destroy();
+      rotateLine = null;
     }
   }
   var previewLine = null;
@@ -601,11 +707,16 @@
           listening: false
         });
       } else if (obj.type === "rectangle") {
+        const cx = obj.x + obj.width / 2;
+        const cy = obj.y + obj.height / 2;
         highlight = new Konva.Rect({
-          x: obj.x - pad,
-          y: obj.y - pad,
+          x: cx,
+          y: cy,
+          offsetX: obj.width / 2 + pad,
+          offsetY: obj.height / 2 + pad,
           width: obj.width + pad * 2,
           height: obj.height + pad * 2,
+          rotation: obj.rotation || 0,
           stroke: "#528A81",
           strokeWidth: stroke,
           dash,
@@ -613,11 +724,18 @@
         });
       } else if (obj.type === "text" || obj.type === "label") {
         const shape = contentLayer.findOne("#" + obj.id);
+        const tw = shape ? shape.width() : 50;
+        const th = shape ? shape.height() : 20;
+        const cx = obj.x + tw / 2;
+        const cy = obj.y + th / 2;
         highlight = new Konva.Rect({
-          x: obj.x - pad,
-          y: obj.y - pad,
-          width: (shape ? shape.width() : 50) + pad * 2,
-          height: (shape ? shape.height() : 20) + pad * 2,
+          x: cx,
+          y: cy,
+          offsetX: tw / 2 + pad,
+          offsetY: th / 2 + pad,
+          width: tw + pad * 2,
+          height: th + pad * 2,
+          rotation: obj.rotation || 0,
           stroke: "#528A81",
           strokeWidth: stroke,
           dash,
@@ -1078,19 +1196,25 @@
     contentLayer.add(group);
   }
   function renderRectangle(obj, editable, isSelectTool) {
+    const cx = obj.x + obj.width / 2;
+    const cy = obj.y + obj.height / 2;
+    const rotation = obj.rotation || 0;
     const rect = new Konva.Rect({
       id: obj.id,
-      x: obj.x,
-      y: obj.y,
+      x: cx,
+      y: cy,
       width: obj.width,
       height: obj.height,
+      offsetX: obj.width / 2,
+      offsetY: obj.height / 2,
+      rotation,
       stroke: obj.stroke || "#2C3338",
       strokeWidth: screenSize2(obj.strokeWidth || WALL_THICKNESS),
       fill: obj.fill || "",
       draggable: isSelectTool && editable
     });
     let widthLabel = null, heightLabel = null;
-    if (appState.dimensionsVisible) {
+    if (appState.dimensionsVisible && !rotation) {
       const widthInches = pixelsToInches(obj.width);
       const heightInches = pixelsToInches(obj.height);
       const fontSize = screenSize2(LABEL_FONT_SIZE);
@@ -1123,25 +1247,20 @@
       });
       contentLayer.add(widthLabel, heightLabel);
     }
-    let startX, startY;
-    rect.on("dragstart", () => {
-      startX = rect.x();
-      startY = rect.y();
-    });
     rect.on("dragmove", () => {
       if (widthLabel && heightLabel) {
         const fontSize = screenSize2(LABEL_FONT_SIZE);
         const labelOffset = screenSize2(12);
         const textHeight = fontSize * 1.2;
-        widthLabel.x(rect.x() + rect.width() / 2);
-        widthLabel.y(rect.y() + rect.height() + labelOffset);
-        heightLabel.x(rect.x() + rect.width() + labelOffset + textHeight / 2);
-        heightLabel.y(rect.y() + rect.height() / 2);
+        widthLabel.x(rect.x());
+        widthLabel.y(rect.y() + rect.height() / 2 + labelOffset);
+        heightLabel.x(rect.x() + rect.width() / 2 + labelOffset + textHeight / 2);
+        heightLabel.y(rect.y());
       }
     });
     rect.on("dragend", () => {
       saveSnapshot();
-      const snapped = snapPointToGrid(rect.x(), rect.y());
+      const snapped = snapPointToGrid(rect.x() - obj.width / 2, rect.y() - obj.height / 2);
       obj.x = snapped.x;
       obj.y = snapped.y;
       renderAllObjects();
@@ -1191,16 +1310,18 @@
       fontSize: obj.fontSize || 14,
       fill: obj.color || "#2C3338",
       fontStyle: obj.fontStyle || "bold",
+      rotation: obj.rotation || 0,
       draggable: isSelectTool && editable
     });
-    let startX, startY;
-    text.on("dragstart", () => {
-      startX = text.x();
-      startY = text.y();
-    });
+    const tw = text.width();
+    const th = text.height();
+    text.offsetX(tw / 2);
+    text.offsetY(th / 2);
+    text.x(obj.x + tw / 2);
+    text.y(obj.y + th / 2);
     text.on("dragend", () => {
       saveSnapshot();
-      const snapped = snapPointToGrid(text.x(), text.y());
+      const snapped = snapPointToGrid(text.x() - tw / 2, text.y() - th / 2);
       obj.x = snapped.x;
       obj.y = snapped.y;
       renderAllObjects();
@@ -1869,6 +1990,9 @@
   var showRectanglePanel = (show) => {
     document.getElementById("rectangle-panel").classList.toggle("hidden", !show);
   };
+  var showTextPanel = (show) => {
+    document.getElementById("text-panel").classList.toggle("hidden", !show);
+  };
   function initializeColorPalette() {
     const palette = document.getElementById("color-palette");
     palette.innerHTML = "";
@@ -1899,6 +2023,37 @@
   }
   function updateColorSelection(selectedColor) {
     const palette = document.getElementById("color-palette");
+    palette.querySelectorAll(".color-swatch").forEach((swatch, i) => {
+      swatch.classList.toggle("selected", COLOR_PALETTE[i] === selectedColor);
+    });
+  }
+  function initializeTextColorPalette() {
+    const palette = document.getElementById("text-color-palette");
+    palette.innerHTML = "";
+    COLOR_PALETTE.forEach((color) => {
+      const swatch = document.createElement("div");
+      swatch.className = "color-swatch" + (color === "#2C3338" ? " selected" : "");
+      swatch.style.backgroundColor = color;
+      swatch.onclick = () => {
+        updateTextColorSelection(color);
+        if (appState.selectedId) {
+          const obj = state.objects.find((o) => o.id === appState.selectedId);
+          if (obj && (obj.type === "text" || obj.type === "label")) {
+            if (layerCallbacks.saveSnapshot) layerCallbacks.saveSnapshot();
+            obj.color = color;
+            const shape = contentLayer.findOne("#" + obj.id);
+            if (shape) {
+              shape.fill(color);
+              contentLayer.batchDraw();
+            }
+          }
+        }
+      };
+      palette.appendChild(swatch);
+    });
+  }
+  function updateTextColorSelection(selectedColor) {
+    const palette = document.getElementById("text-color-palette");
     palette.querySelectorAll(".color-swatch").forEach((swatch, i) => {
       swatch.classList.toggle("selected", COLOR_PALETTE[i] === selectedColor);
     });
@@ -2208,6 +2363,8 @@
     renderAllObjects,
     showRectanglePanel,
     updateRectanglePanelFromSelection,
+    showTextPanel,
+    updateTextPanelFromSelection,
     updateMoveToLayerButton
   });
   setWallToolCallbacks({
@@ -2283,6 +2440,12 @@
     const heightInput = document.getElementById("rect-height-input");
     if (widthInput) widthInput.value = formatDimension(pixelsToInches(obj.width));
     if (heightInput) heightInput.value = formatDimension(pixelsToInches(obj.height));
+  }
+  function updateTextPanelFromSelection(obj) {
+    if (obj.type !== "text" && obj.type !== "label") return;
+    const sizeInput = document.getElementById("text-size-input");
+    if (sizeInput) sizeInput.value = obj.fontSize || 14;
+    updateTextColorSelection(obj.color || "#2C3338");
   }
   stage.on("wheel", handleZoom);
   stage.on("click tap", (e) => {
@@ -2397,6 +2560,8 @@
   document.getElementById("save-btn").addEventListener("click", saveLayout);
   document.getElementById("load-btn").addEventListener("click", loadLayout);
   document.getElementById("export-btn").addEventListener("click", exportPNG);
+  document.getElementById("copy-btn").addEventListener("click", copySelection);
+  document.getElementById("paste-btn").addEventListener("click", pasteSelection);
   document.getElementById("add-layer-btn").addEventListener("click", addLayer);
   document.getElementById("move-to-layer-btn").addEventListener("click", moveSelectedToActiveLayer);
   document.querySelectorAll(".layer-menu-item").forEach((item) => {
@@ -2502,6 +2667,16 @@
       updateStatusBar("Height updated");
     }
   });
+  document.getElementById("text-size-input").addEventListener("change", (e) => {
+    const size = parseInt(e.target.value);
+    if (!size || size < 6 || size > 200 || !appState.selectedId) return;
+    const obj = state.objects.find((o) => o.id === appState.selectedId);
+    if (!obj || obj.type !== "text" && obj.type !== "label") return;
+    saveSnapshot();
+    obj.fontSize = size;
+    renderAllObjects();
+    selectObject(obj.id);
+  });
   document.addEventListener("keydown", (e) => {
     const inInput = e.target.matches("input, select, textarea");
     if (e.key === " " && !inInput) {
@@ -2550,6 +2725,7 @@
     }
   });
   initializeColorPalette();
+  initializeTextColorPalette();
   renderLayerPanel();
   drawGrid();
   updateUndoRedoButtons();
