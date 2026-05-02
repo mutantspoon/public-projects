@@ -259,13 +259,15 @@ function renderRectangle(obj, editable, isSelectTool) {
     stroke: obj.stroke || '#2C3338',
     strokeWidth: screenSize(obj.strokeWidth || WALL_THICKNESS),
     fill: obj.fill || '',
+    dash: obj.dashed ? [screenSize(10), screenSize(6)] : undefined,
     draggable: isSelectTool && editable
   });
 
-  // Dimension labels (only for unrotated rectangles)
+  // Dimension labels (only for unrotated rectangles, honoring per-object override)
   let widthLabel = null, heightLabel = null;
+  const showDims = obj.showDimensions !== false;
 
-  if (appState.dimensionsVisible && !rotation) {
+  if (appState.dimensionsVisible && showDims && !rotation) {
     const widthInches = pixelsToInches(obj.width);
     const heightInches = pixelsToInches(obj.height);
     const fontSize = screenSize(LABEL_FONT_SIZE);

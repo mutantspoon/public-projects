@@ -24,6 +24,9 @@ export function parseDimension(input) {
   // Match space-separated feet inches: 10 6
   m = input.match(/^(\d+)\s+(\d+)$/);
   if (m) return parseInt(m[1]) * 12 + parseInt(m[2]);
+  // Match inches only: 95", 95in
+  m = input.match(/^(\d+)\s*(?:[""]|in|inches)$/i);
+  if (m) return parseInt(m[1]);
   // Match plain number as inches
   m = input.match(/^(\d+)$/);
   return m ? parseInt(m[1]) : 0;

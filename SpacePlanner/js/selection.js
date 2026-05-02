@@ -545,10 +545,20 @@ export function endBoxSelect(x, y) {
   boxSelectStart = null;
   uiLayer.batchDraw();
 
-  if (selectedObjects.length === 1) {
-    selectObject(selectedObjects[0].id);
-  } else if (selectedObjects.length > 1) {
-    selectMultiple(selectedObjects.map(o => o.id));
+  const additive = appState.shiftPressed;
+  const hitIds = selectedObjects.map(o => o.id);
+
+  if (additive) {
+    const existing = appState.selectedIds.length > 0
+      ? appState.selectedIds
+      : (appState.selectedId ? [appState.selectedId] : []);
+    const merged = Array.from(new Set([...existing, ...hitIds]));
+    if (merged.length === 1) selectObject(merged[0]);
+    else if (merged.length > 1) selectMultiple(merged);
+    // If merged is empty (no prior selection, no box hits), leave as-is.
+  } else {
+    if (hitIds.length === 1) selectObject(hitIds[0]);
+    else if (hitIds.length > 1) selectMultiple(hitIds);
   }
 
   return selectedObjects;
@@ -603,6 +613,31 @@ function selectMultiple(ids) {
 // Expose for external use
 export function selectObjects(ids) {
   selectMultiple(ids);
+}
+
+// Add or remove a single object from the current selection.
+// - Not selected -> add (single-select if first, multi-select otherwise)
+// - Already selected -> remove (drop to single-select or fully deselect)
+export function toggleObjectSelection(id) {
+  const obj = state.objects.find(o => o.id === id);
+  if (!obj || !isObjectEditable(obj)) return;
+
+  const current = appState.selectedIds.length > 0
+    ? [...appState.selectedIds]
+    : (appState.selectedId ? [appState.selectedId] : []);
+
+  const idx = current.indexOf(id);
+  if (idx >= 0) current.splice(idx, 1);
+  else current.push(id);
+
+  if (current.length === 0) {
+    deselectObject();
+  } else if (current.length === 1) {
+    deselectObject();
+    selectObject(current[0]);
+  } else {
+    selectMultiple(current);
+  }
 }
 
 function drawMultiHighlights(objects) {
@@ -727,6 +762,30 @@ function createMultiDragGroup(objects) {
     const currentObjects = appState.selectedIds.map(id => state.objects.find(o => o.id === id)).filter(Boolean);
     drawMultiHighlights(currentObjects);
     if (callbacks.renderAllObjects) callbacks.renderAllObjects();
+  });
+
+  // Shift+click on the multi-select drag rect: find the object underneath
+  // and toggle it in/out of the selection. Without shift, this rect is a
+  // pure drag handle (no click action — clicking inside it is a no-op).
+  multiSelectGroup.on('click tap', e => {
+    if (!appState.shiftPressed) return;
+    e.cancelBubble = true;
+
+    multiSelectGroup.listening(false);
+    const pos = stage.getPointerPosition();
+    const target = pos ? stage.getIntersection(pos) : null;
+    multiSelectGroup.listening(true);
+
+    if (!target || target === stage) return;
+    let node = target;
+    while (node && node !== stage) {
+      const nid = node.id();
+      if (nid && state.objects.some(o => o.id === nid)) {
+        toggleObjectSelection(nid);
+        return;
+      }
+      node = node.getParent();
+    }
   });
 
   multiSelectGroup.on('dragend', () => {

@@ -122,6 +122,8 @@
     if (m) return parseInt(m[1]) * 12 + (m[2] ? parseInt(m[2]) : 0);
     m = input.match(/^(\d+)\s+(\d+)$/);
     if (m) return parseInt(m[1]) * 12 + parseInt(m[2]);
+    m = input.match(/^(\d+)\s*(?:[""]|in|inches)$/i);
+    if (m) return parseInt(m[1]);
     m = input.match(/^(\d+)$/);
     return m ? parseInt(m[1]) : 0;
   }
@@ -642,10 +644,16 @@
     boxSelectRect = null;
     boxSelectStart = null;
     uiLayer.batchDraw();
-    if (selectedObjects.length === 1) {
-      selectObject(selectedObjects[0].id);
-    } else if (selectedObjects.length > 1) {
-      selectMultiple(selectedObjects.map((o) => o.id));
+    const additive = appState.shiftPressed;
+    const hitIds = selectedObjects.map((o) => o.id);
+    if (additive) {
+      const existing = appState.selectedIds.length > 0 ? appState.selectedIds : appState.selectedId ? [appState.selectedId] : [];
+      const merged = Array.from(/* @__PURE__ */ new Set([...existing, ...hitIds]));
+      if (merged.length === 1) selectObject(merged[0]);
+      else if (merged.length > 1) selectMultiple(merged);
+    } else {
+      if (hitIds.length === 1) selectObject(hitIds[0]);
+      else if (hitIds.length > 1) selectMultiple(hitIds);
     }
     return selectedObjects;
   }
@@ -683,6 +691,22 @@
   }
   function selectObjects(ids) {
     selectMultiple(ids);
+  }
+  function toggleObjectSelection(id) {
+    const obj = state.objects.find((o) => o.id === id);
+    if (!obj || !isObjectEditable(obj)) return;
+    const current = appState.selectedIds.length > 0 ? [...appState.selectedIds] : appState.selectedId ? [appState.selectedId] : [];
+    const idx = current.indexOf(id);
+    if (idx >= 0) current.splice(idx, 1);
+    else current.push(id);
+    if (current.length === 0) {
+      deselectObject();
+    } else if (current.length === 1) {
+      deselectObject();
+      selectObject(current[0]);
+    } else {
+      selectMultiple(current);
+    }
   }
   function drawMultiHighlights(objects) {
     clearHighlights();
@@ -811,6 +835,24 @@
       const currentObjects = appState.selectedIds.map((id) => state.objects.find((o) => o.id === id)).filter(Boolean);
       drawMultiHighlights(currentObjects);
       if (callbacks.renderAllObjects) callbacks.renderAllObjects();
+    });
+    multiSelectGroup.on("click tap", (e) => {
+      if (!appState.shiftPressed) return;
+      e.cancelBubble = true;
+      multiSelectGroup.listening(false);
+      const pos = stage.getPointerPosition();
+      const target = pos ? stage.getIntersection(pos) : null;
+      multiSelectGroup.listening(true);
+      if (!target || target === stage) return;
+      let node = target;
+      while (node && node !== stage) {
+        const nid = node.id();
+        if (nid && state.objects.some((o) => o.id === nid)) {
+          toggleObjectSelection(nid);
+          return;
+        }
+        node = node.getParent();
+      }
     });
     multiSelectGroup.on("dragend", () => {
       saveSnapshot();
@@ -1211,10 +1253,12 @@
       stroke: obj.stroke || "#2C3338",
       strokeWidth: screenSize2(obj.strokeWidth || WALL_THICKNESS),
       fill: obj.fill || "",
+      dash: obj.dashed ? [screenSize2(10), screenSize2(6)] : void 0,
       draggable: isSelectTool && editable
     });
     let widthLabel = null, heightLabel = null;
-    if (appState.dimensionsVisible && !rotation) {
+    const showDims = obj.showDimensions !== false;
+    if (appState.dimensionsVisible && showDims && !rotation) {
       const widthInches = pixelsToInches(obj.width);
       const heightInches = pixelsToInches(obj.height);
       const fontSize = screenSize2(LABEL_FONT_SIZE);
@@ -2341,7 +2385,10 @@
   });
   setRenderingCallbacks({
     onDelete: deleteObjectById,
-    onSelect: selectObject,
+    onSelect: (id) => {
+      if (appState.shiftPressed) toggleObjectSelection(id);
+      else selectObject(id);
+    },
     onWallClick: () => {
       const pos = getCanvasPointerPosition();
       if (pos) handleWallClick(pos.x, pos.y);
@@ -2435,6 +2482,8 @@
     appState.rectangleColor = obj.stroke || "#2C3338";
     appState.rectangleFilled = !!obj.fill;
     document.getElementById("rect-fill").checked = appState.rectangleFilled;
+    document.getElementById("rect-dashed").checked = !!obj.dashed;
+    document.getElementById("rect-show-dims").checked = obj.showDimensions !== false;
     updateColorSelection(appState.rectangleColor);
     const widthInput = document.getElementById("rect-width-input");
     const heightInput = document.getElementById("rect-height-input");
@@ -2456,8 +2505,9 @@
     if (e.target !== stage) return;
     const pos = getCanvasPointerPosition();
     if (!pos) return;
-    if (appState.currentTool === "select") deselectObject();
-    else if (appState.currentTool === "wall") handleWallClick(pos.x, pos.y);
+    if (appState.currentTool === "select") {
+      if (!appState.shiftPressed) deselectObject();
+    } else if (appState.currentTool === "wall") handleWallClick(pos.x, pos.y);
     else if (appState.currentTool === "rectangle") handleRectangleClick(pos.x, pos.y);
     else if (appState.currentTool === "text") handleTextClick(pos.x, pos.y);
   });
@@ -2623,6 +2673,24 @@
         }
       }
     }
+  });
+  document.getElementById("rect-dashed").addEventListener("change", (e) => {
+    if (!appState.selectedId) return;
+    const obj = state.objects.find((o) => o.id === appState.selectedId);
+    if (obj?.type !== "rectangle") return;
+    saveSnapshot();
+    obj.dashed = e.target.checked;
+    renderAllObjects();
+    selectObject(obj.id);
+  });
+  document.getElementById("rect-show-dims").addEventListener("change", (e) => {
+    if (!appState.selectedId) return;
+    const obj = state.objects.find((o) => o.id === appState.selectedId);
+    if (obj?.type !== "rectangle") return;
+    saveSnapshot();
+    obj.showDimensions = e.target.checked;
+    renderAllObjects();
+    selectObject(obj.id);
   });
   document.getElementById("dimension-input").addEventListener("keypress", (e) => {
     if (e.key === "Enter") {

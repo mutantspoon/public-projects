@@ -11,7 +11,7 @@ import { renderAllObjects, renderObject, moveTextToTop, setRenderingCallbacks } 
 import {
   selectObject, deselectObject, deleteSelectedObject, deleteObjectById,
   startBoxSelect, updateBoxSelect, endBoxSelect, cancelBoxSelect, isBoxSelecting,
-  setSelectionCallbacks, copySelection, pasteSelection
+  setSelectionCallbacks, copySelection, pasteSelection, toggleObjectSelection
 } from './selection.js';
 import { handleWallClick, handleWallMove, clearWallGhost, resetWallTool, getWallStart, setWallToolCallbacks } from './tools/wall-tool.js';
 import { handleRectangleClick, handleRectangleMove, clearRectangleGhost, resetRectangleTool, getRectStart, setRectangleToolCallbacks } from './tools/rectangle-tool.js';
@@ -33,7 +33,10 @@ setHistoryCallbacks({
 
 setRenderingCallbacks({
   onDelete: deleteObjectById,
-  onSelect: selectObject,
+  onSelect: id => {
+    if (appState.shiftPressed) toggleObjectSelection(id);
+    else selectObject(id);
+  },
   onWallClick: () => {
     const pos = getCanvasPointerPosition();
     if (pos) handleWallClick(pos.x, pos.y);
@@ -147,6 +150,8 @@ function updateRectanglePanelFromSelection(obj) {
   appState.rectangleColor = obj.stroke || '#2C3338';
   appState.rectangleFilled = !!obj.fill;
   document.getElementById('rect-fill').checked = appState.rectangleFilled;
+  document.getElementById('rect-dashed').checked = !!obj.dashed;
+  document.getElementById('rect-show-dims').checked = obj.showDimensions !== false;
   updateColorSelection(appState.rectangleColor);
 
   // Update dimension inputs
@@ -196,7 +201,9 @@ stage.on('click tap', e => {
   const pos = getCanvasPointerPosition();
   if (!pos) return;
 
-  if (appState.currentTool === 'select') deselectObject();
+  if (appState.currentTool === 'select') {
+    if (!appState.shiftPressed) deselectObject();
+  }
   else if (appState.currentTool === 'wall') handleWallClick(pos.x, pos.y);
   else if (appState.currentTool === 'rectangle') handleRectangleClick(pos.x, pos.y);
   else if (appState.currentTool === 'text') handleTextClick(pos.x, pos.y);
@@ -393,6 +400,26 @@ document.getElementById('rect-fill').addEventListener('change', e => {
       }
     }
   }
+});
+
+document.getElementById('rect-dashed').addEventListener('change', e => {
+  if (!appState.selectedId) return;
+  const obj = state.objects.find(o => o.id === appState.selectedId);
+  if (obj?.type !== 'rectangle') return;
+  saveSnapshot();
+  obj.dashed = e.target.checked;
+  renderAllObjects();
+  selectObject(obj.id);
+});
+
+document.getElementById('rect-show-dims').addEventListener('change', e => {
+  if (!appState.selectedId) return;
+  const obj = state.objects.find(o => o.id === appState.selectedId);
+  if (obj?.type !== 'rectangle') return;
+  saveSnapshot();
+  obj.showDimensions = e.target.checked;
+  renderAllObjects();
+  selectObject(obj.id);
 });
 
 document.getElementById('dimension-input').addEventListener('keypress', e => {
