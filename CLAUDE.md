@@ -4,121 +4,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-**public-projects** contains SpacePlanner, a browser-based interior design tool. This repo is public and hosted on GitHub Pages.
-
-**GitHub Pages URL:** https://mutantspoon.github.io/public-projects/SpacePlanner/
+**public-projects** is a monorepo containing three independent browser-based tools, all deployed to GitHub Pages. Each project is self-contained with no cross-dependencies.
 
 **Directory Structure:**
-- `SpacePlanner/` - Browser-based interior design tool
-
-## SpacePlanner
-
-**SpacePlanner** (`SpacePlanner/`) - Browser-based interior design tool
-- 2D vector drawing for floor plans and room layouts
-- Single-file HTML/CSS/JS application (Konva.js + Tailwind CSS via CDN)
-- Tools: walls, rectangles (with stroke/fill colors), text labels, eraser
-- Smart snapping: grid (1" or 1'), wall vertices, wall lines, object edges/centers
-- Modifiers: Shift for axis lock, Ctrl for coarse (foot) grid snap
-- Box selection for multi-object operations
-- Natural dimension input (10' 6", 10 6, or plain inches)
-- LOD grid system (hides detail at zoom out)
-- Undo/redo, save/load (.layout JSON), export PNG
-- No server required, runs entirely client-side
-
-### Quick Start
-
-```bash
-cd SpacePlanner
-# No installation needed - just open in browser
-start index.html  # Windows
-open index.html   # macOS
+```
+public-projects/
+├── SpacePlanner/        # Interior design floor planner
+├── WFI/                 # Wake County NC restaurant inspection lookup
+├── Quill/               # Cross-platform markdown editor (Tauri + Milkdown)
+└── CLAUDE.md            # This file (directory overview)
 ```
 
-**Keyboard Shortcuts:**
-- `S/W/R/T/E` - Switch tool (Select/Wall/Rectangle/Text/Eraser)
-- `Shift` (while drawing) - Lock to horizontal/vertical axis
-- `Ctrl` (while drawing) - Snap to foot grid instead of inch grid
-- `Space` + drag - Pan canvas
-- `Del` - Delete selected object(s)
-- `Esc` - Cancel drawing or deselect
-- `Ctrl+Z/Y` - Undo/Redo
-- Double-click text - Edit text content
+## Projects at a Glance
 
-**Features:**
-- Wall/Rectangle: Click-to-start, click-to-end with live dimensions
-- Smart guides: Snap to object edges, centers, and wall vertices
-- Text labels: Always render on top, bold styling
-- Box select: Click-drag on empty space to select multiple objects
-- Dimension parser: Supports `10'`, `10' 6"`, `10 6`, `150` formats
-- Color palette: 16 colors for rectangle stroke/fill
-- Export: JSON (.layout) and PNG
+| Project | Purpose | Tech | GitHub Pages URL |
+|---------|---------|------|------------------|
+| **SpacePlanner** | 2D floor plan design tool | HTML/CSS/JS (Konva.js) | https://mutantspoon.github.io/public-projects/SpacePlanner/ |
+| **WFI** | Restaurant sanitation inspection search | Python scraper + static HTML | https://mutantspoon.github.io/public-projects/WFI/ |
+| **Quill** | WYSIWYG markdown editor | Tauri (Rust) + Milkdown | Native app (.exe, .app) |
 
-### Architecture
+## Quick Navigation
 
-SpacePlanner uses modular ES6 JavaScript:
-- `js/app.js` - Main entry point, initialization
-- `js/konva-setup.js` - Canvas and stage setup
-- `js/state.js` - Global state management
-- `js/tools/` - Tool implementations (wall-tool.js, rectangle-tool.js, text-tool.js)
-- `js/snapping.js` - Smart snapping system
-- `js/grid.js` - LOD grid rendering
-- `js/selection.js` - Multi-object selection
-- `js/history.js` - Undo/redo system
-- `js/file-io.js` - Save/load functionality
-- `bundle.js` - Bundled version (generated via `build.bat`)
+- **Working on SpacePlanner?** See `SpacePlanner/CLAUDE.md` for build setup, architecture, and keyboard shortcuts
+- **Working on WFI?** See `WFI/CLAUDE.md` for scraper workflow, data refresh, and site structure
+- **Working on Quill?** See `Quill/CLAUDE.md` for dev setup, Tauri commands, and AI comment system
 
-### Architectural Patterns
+## General Guidelines
 
-**Single Owner for UI State:**
-- Selection module owns ALL selection UI (highlights, handles, previews)
-- Prevents cleanup bugs from multiple systems managing overlapping UI
+All projects follow these conventions:
+- **Single responsibility**: Each tool does one thing well
+- **Self-contained**: No shared dependencies or inter-project imports
+- **Browser/native first**: No server required (except Quill is native)
+- **GitHub Pages deployment**: Push to `main` auto-deploys (SpacePlanner, WFI only)
 
-**Creation vs Editing Separation:**
-- Tool modules handle CREATION only (ghost shapes while drawing)
-- Selection module handles EDITING (drag handles, resize)
-
-**Callback Pattern for Circular Dependencies:**
-- ES6 modules can't have circular imports
-- Use `setXxxCallbacks()` pattern - each module exposes callback setters
-- Init module wires them together during startup
-
-**State Lookups by ID:**
-- Always look up objects fresh by ID from state store
-- Store only IDs, not object references (prevents stale references)
-
-### Development
-
-```bash
-# Build bundled version
-cd SpacePlanner
-./build.bat  # Windows (uses npx esbuild)
-```
-
-## Code Style
-
-**JavaScript:**
-- Files: `kebab-case.js`
-- Functions: `camelCase()`
-- Constants: `UPPER_SNAKE_CASE`
-- Classes: `PascalCase`
-
-**Project Philosophy:**
-- Self-contained (no build dependencies, CDN for libraries)
-- Settings-driven design (dimension units, grid spacing)
-- Minimal features (MVP approach)
-- Comments only where logic isn't self-evident
-
-## Platform
-
-**Target:** Cross-platform browser-based tool
-- Chrome, Firefox, Edge, Safari
-- No OS dependencies, runs entirely client-side
-- Single HTML file, portable to any modern browser
-
-## Git Workflow
-
-**Branch:** `main`
-
-**Deployment:**
-- GitHub Pages serves from `main` branch
-- Push to `main` auto-deploys to https://mutantspoon.github.io/public-projects/SpacePlanner/

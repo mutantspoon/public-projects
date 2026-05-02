@@ -35,13 +35,16 @@ SpacePlanner/
 **IMPORTANT:** After editing ANY file in `js/`, you MUST rebuild:
 
 ```bash
-cd D:/Projects/tools/SpacePlanner
-build.bat
+cd SpacePlanner
+./build.bat      # Windows (runs: npx esbuild js/app.js --bundle --outfile=bundle.js --format=iife)
+# Or macOS/Linux:
+npx esbuild js/app.js --bundle --outfile=bundle.js --format=iife
 ```
 
-Or manually:
+First-time setup (if you don't have esbuild):
 ```bash
-npx esbuild js/app.js --bundle --outfile=bundle.js --format=iife
+npm install -g esbuild
+# Or use npx (no install needed, slightly slower)
 ```
 
 The HTML references `bundle.js`, not the ES6 modules directly (browser CORS restrictions prevent loading modules from file:// protocol).

@@ -4,6 +4,14 @@
 
 **Quill** - A lightweight, cross-platform WYSIWYG markdown editor built with Tauri (Rust) and Milkdown.
 
+## Quick Start
+
+```bash
+cd ui && npm install           # First time only
+npm run tauri:dev             # Dev mode (builds JS + launches Tauri)
+cargo tauri build             # Production build
+```
+
 ## Tech Stack
 
 - **GUI**: Tauri 2.x (native OS WebView via WebView2 on Windows, WebKit on macOS)

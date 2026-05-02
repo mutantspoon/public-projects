@@ -8,6 +8,12 @@ A personal tool for looking up Wake County NC restaurant sanitation inspection s
 1. **Scraper** — pulls data from the NC public health inspection site into a CSV
 2. **Site** — a single static `index.html` with the data embedded as inline JSON, deployed to GitHub Pages
 
+## Quick Start
+
+```bash
+python3 refresh.py  # Full data refresh (scrape + convert to JSON + output)
+```
+
 ## Data Refresh Workflow
 
 ```bash
