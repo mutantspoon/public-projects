@@ -181,6 +181,20 @@ async function init() {
         // Not in Tauri context
     }
 
+    // Handle Cmd+Q (custom macOS menu item) — Rust emits this instead of
+    // calling window.close(), which is unreliable in signed/notarized builds.
+    try {
+        await listen('quit-requested', async () => {
+            const okToClose = await handleAppClose();
+            if (okToClose) {
+                const api = await getApi();
+                api.force_close().catch(() => {});
+            }
+        });
+    } catch (e) {
+        // Not in Tauri context
+    }
+
     // Focus the editor
     setTimeout(() => focus(), 100);
 }

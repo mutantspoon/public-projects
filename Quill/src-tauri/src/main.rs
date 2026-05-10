@@ -770,9 +770,11 @@ fn main() {
         })
         .on_menu_event(|app, event| {
             if event.id() == "quit-quill" {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.close();
-                }
+                // Emit directly to JS instead of calling window.close() — in
+                // signed/notarized macOS builds, window.close() does not reliably
+                // fire the webview's CloseRequested handler, so the dirty-tab
+                // prompt was being skipped.
+                let _ = app.emit("quit-requested", ());
             }
         })
         .setup(move |app| {
