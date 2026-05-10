@@ -727,57 +727,55 @@ fn main() {
             startup_file: startup_file.clone(),
             config_dir,
         }))
-        .setup(move |app| {
+        .menu(|handle| {
             // macOS Cmd+Q via the default app menu calls NSApp terminate: directly,
-            // bypassing Tauri's RunEvent loop and our window's CloseRequested handler.
-            // Replace the default menu with one whose Quit item routes through
-            // window.close() so the JS dirty-tab prompt runs.
-            #[cfg(target_os = "macos")]
-            {
-                use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-                let quit = MenuItemBuilder::new("Quit Quill")
-                    .id("quit-quill")
-                    .accelerator("Cmd+Q")
-                    .build(app)?;
-                let app_menu = SubmenuBuilder::new(app, "Quill")
-                    .about(None)
-                    .separator()
-                    .services()
-                    .separator()
-                    .hide()
-                    .hide_others()
-                    .show_all()
-                    .separator()
-                    .item(&quit)
-                    .build()?;
-                let edit_menu = SubmenuBuilder::new(app, "Edit")
-                    .undo()
-                    .redo()
-                    .separator()
-                    .cut()
-                    .copy()
-                    .paste()
-                    .select_all()
-                    .build()?;
-                let window_menu = SubmenuBuilder::new(app, "Window")
-                    .minimize()
-                    .separator()
-                    .close_window()
-                    .build()?;
-                let menu = MenuBuilder::new(app)
-                    .items(&[&app_menu, &edit_menu, &window_menu])
-                    .build()?;
-                app.set_menu(menu)?;
-                let app_handle = app.handle().clone();
-                app.on_menu_event(move |_, event| {
-                    if event.id() == "quit-quill" {
-                        if let Some(window) = app_handle.get_webview_window("main") {
-                            let _ = window.close();
-                        }
-                    }
-                });
+            // bypassing the run loop and our window's CloseRequested handler. Build a
+            // custom menu (must be registered via Builder::menu so AppKit picks it up
+            // before the app delegate is installed — set_menu in setup() is too late
+            // for bundled .app builds) where Quit routes through window.close() so the
+            // JS dirty-tab prompt runs.
+            use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+            let quit = MenuItemBuilder::new("Quit Quill")
+                .id("quit-quill")
+                .accelerator("Cmd+Q")
+                .build(handle)?;
+            let app_menu = SubmenuBuilder::new(handle, "Quill")
+                .about(None)
+                .separator()
+                .services()
+                .separator()
+                .hide()
+                .hide_others()
+                .show_all()
+                .separator()
+                .item(&quit)
+                .build()?;
+            let edit_menu = SubmenuBuilder::new(handle, "Edit")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .select_all()
+                .build()?;
+            let window_menu = SubmenuBuilder::new(handle, "Window")
+                .minimize()
+                .separator()
+                .close_window()
+                .build()?;
+            MenuBuilder::new(handle)
+                .items(&[&app_menu, &edit_menu, &window_menu])
+                .build()
+        })
+        .on_menu_event(|app, event| {
+            if event.id() == "quit-quill" {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.close();
+                }
             }
-
+        })
+        .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
                 // Restore saved window geometry (logical pixels to match Python behavior)
                 let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
