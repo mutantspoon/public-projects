@@ -27,6 +27,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: Quill/src-tauri -> target
+          prefix-key: v2-quill-macos
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -107,6 +108,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: Quill/src-tauri -> target
+          prefix-key: v2-quill-windows
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
