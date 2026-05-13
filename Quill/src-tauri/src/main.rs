@@ -759,22 +759,39 @@ fn main() {
                 .paste()
                 .select_all()
                 .build()?;
+            // Custom Close Window — the predefined `.close_window()` item uses
+            // AppKit's `performClose:` selector which bypasses Tauri's
+            // CloseRequested webview event in signed/notarized builds.
+            let close_win = MenuItemBuilder::new("Close Window")
+                .id("close-window")
+                .accelerator("Cmd+W")
+                .build(handle)?;
             let window_menu = SubmenuBuilder::new(handle, "Window")
                 .minimize()
                 .separator()
-                .close_window()
+                .item(&close_win)
                 .build()?;
             MenuBuilder::new(handle)
                 .items(&[&app_menu, &edit_menu, &window_menu])
                 .build()
         })
         .on_menu_event(|app, event| {
-            if event.id() == "quit-quill" {
-                // Emit directly to JS instead of calling window.close() — in
-                // signed/notarized macOS builds, window.close() does not reliably
-                // fire the webview's CloseRequested handler, so the dirty-tab
-                // prompt was being skipped.
-                let _ = app.emit("quit-requested", ());
+            let id = event.id().0.as_str();
+            eprintln!("[quill] menu event: {}", id);
+            match id {
+                "quit-quill" => {
+                    match app.emit("quit-requested", ()) {
+                        Ok(_) => eprintln!("[quill] emitted quit-requested"),
+                        Err(err) => eprintln!("[quill] emit quit-requested failed: {err:?}"),
+                    }
+                }
+                "close-window" => {
+                    match app.emit("close-window-requested", ()) {
+                        Ok(_) => eprintln!("[quill] emitted close-window-requested"),
+                        Err(err) => eprintln!("[quill] emit close-window-requested failed: {err:?}"),
+                    }
+                }
+                _ => {}
             }
         })
         .setup(move |app| {

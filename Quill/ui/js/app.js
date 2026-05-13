@@ -155,44 +155,60 @@ async function init() {
         // Ignore startup file errors
     }
 
-    // Handle window close via Tauri (replaces Python on_closing / _quillHandleAppClose)
+    // Handle red-button window close.
     try {
         const appWindow = getCurrentWindow();
         await appWindow.onCloseRequested(async (event) => {
+            console.log('[quill] onCloseRequested fired');
             event.preventDefault();
             const okToClose = await handleAppClose();
             if (okToClose) {
                 const api = await getApi();
-                // Don't await — window.destroy() fires before the invoke returns
                 api.force_close().catch(() => {});
             }
         });
+        console.log('[quill] onCloseRequested registered');
     } catch (e) {
-        // Not in Tauri context (should not happen in production)
+        console.error('[quill] onCloseRequested registration failed', e);
     }
 
-    // Handle macOS "Open with" events fired while the app is already running
     try {
         await listen('open-file', (event) => {
             const { path, content } = event.payload;
             openFileInTab(path, content);
         });
     } catch (e) {
-        // Not in Tauri context
+        console.error('[quill] open-file listen failed', e);
     }
 
-    // Handle Cmd+Q (custom macOS menu item) — Rust emits this instead of
-    // calling window.close(), which is unreliable in signed/notarized builds.
+    // Handle Cmd+Q (custom macOS menu item).
     try {
         await listen('quit-requested', async () => {
+            console.log('[quill] quit-requested received');
             const okToClose = await handleAppClose();
             if (okToClose) {
                 const api = await getApi();
                 api.force_close().catch(() => {});
             }
         });
+        console.log('[quill] quit-requested listener registered');
     } catch (e) {
-        // Not in Tauri context
+        console.error('[quill] quit-requested listen failed', e);
+    }
+
+    // Handle Cmd+W (custom macOS menu item).
+    try {
+        await listen('close-window-requested', async () => {
+            console.log('[quill] close-window-requested received');
+            const okToClose = await handleAppClose();
+            if (okToClose) {
+                const api = await getApi();
+                api.force_close().catch(() => {});
+            }
+        });
+        console.log('[quill] close-window-requested listener registered');
+    } catch (e) {
+        console.error('[quill] close-window-requested listen failed', e);
     }
 
     // Focus the editor
