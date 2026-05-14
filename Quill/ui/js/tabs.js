@@ -148,7 +148,12 @@ export async function closeTab(tabId, force = false) {
         }
 
         if (result === 'save') {
-            // Save the file first
+            // Save must target THIS tab, not the active tab. Switching first
+            // makes handleSave operate on the right document. For untitled
+            // tabs, saveCallback falls through to save_file_as.
+            if (activeTabId !== tabId) {
+                switchToTab(tabId);
+            }
             const saved = await saveCallback();
             if (!saved) {
                 return false;  // Save failed or was cancelled
@@ -453,16 +458,9 @@ export async function handleAppClose() {
 
     if (result === 'save') {
         for (const tab of dirtyTabs) {
-            // Untitled files (no path) require a native Save As dialog, which
-            // deadlocks on macOS when triggered from the close event chain.
-            // Cancel the close and switch to the tab so the user can save first.
-            if (!tab.path) {
-                switchToTab(tab.id);
-                const mod = navigator.platform.toUpperCase().includes('MAC') ? '⌘S' : 'Ctrl+S';
-                showInfo(`Save the file first (${mod}), then close again.`);
-                return false;
-            }
             switchToTab(tab.id);
+            // For untitled tabs, saveCallback falls through to save_file_as,
+            // opening a native picker. If the user cancels, treat as cancel-close.
             const saved = await saveCallback();
             if (!saved) return false;
         }

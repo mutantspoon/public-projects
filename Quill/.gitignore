@@ -28,3 +28,8 @@ src-tauri/target/
 
 # Quill specific
 *.log
+
+# Generated frontend bundles (built fresh into dist/ by ui/build.mjs;
+# the legacy ui/js/bundle.js was a confusing stale committed artifact)
+ui/js/bundle.js
+dist/

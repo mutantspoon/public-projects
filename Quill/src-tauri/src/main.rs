@@ -131,8 +131,16 @@ fn load_settings(config_dir: &PathBuf) -> Settings {
 fn save_settings(config_dir: &PathBuf, settings: &Settings) {
     let _ = fs::create_dir_all(config_dir);
     let path = config_dir.join("settings.json");
+    let tmp = config_dir.join("settings.json.tmp");
     if let Ok(json) = serde_json::to_string_pretty(settings) {
-        let _ = fs::write(&path, json);
+        // Atomic write: tmp file → rename. Avoids partial writes corrupting
+        // settings (which include API keys and recent files) on crash/power loss.
+        if fs::write(&tmp, json.as_bytes()).is_ok() {
+            if let Err(e) = fs::rename(&tmp, &path) {
+                eprintln!("[quill] settings rename failed: {e}");
+                let _ = fs::remove_file(&tmp);
+            }
+        }
     }
 }
 
@@ -261,11 +269,16 @@ fn open_recent_file(
 }
 
 #[tauri::command]
-async fn save_file(content: String, app: AppHandle) -> serde_json::Value {
-    let current = app.state::<SharedState>().lock().unwrap().current_file.clone();
-    if let Some(path) = current {
+async fn save_file(content: String, path: Option<String>, app: AppHandle) -> serde_json::Value {
+    // Prefer the path explicitly provided by the frontend (the active tab's
+    // path). Falling back to current_file is racy when tab switches happen
+    // faster than set_current_file resolves — JS-provided path eliminates that.
+    let target = path.or_else(|| {
+        app.state::<SharedState>().lock().unwrap().current_file.clone()
+    });
+    if let Some(p) = target {
         let state = app.state::<SharedState>();
-        save_to_path(&path, &content, &app, &state)
+        save_to_path(&p, &content, &app, &state)
     } else {
         save_file_as(content, app).await
     }
@@ -602,16 +615,24 @@ async fn save_pdf(app: AppHandle, data_b64: String, filename: String) -> serde_j
 #[tauri::command]
 async fn call_gemini(api_key: String, system: String, user: String, model: String) -> serde_json::Value {
     let client = reqwest::Client::new();
+    // Auth via x-goog-api-key header rather than ?key= query param so the key
+    // doesn't appear in URLs (proxies, history, error logs).
     let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
-        model, api_key
+        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+        model
     );
     let body = serde_json::json!({
         "contents": [{ "role": "user", "parts": [{ "text": user }] }],
         "systemInstruction": { "parts": [{ "text": system }] },
         "generationConfig": { "maxOutputTokens": 16384, "temperature": 0 }
     });
-    let res = client.post(&url).json(&body).send().await;
+    let res = client
+        .post(&url)
+        .header("x-goog-api-key", &api_key)
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await;
     match res {
         Ok(r) => r.json::<serde_json::Value>().await.unwrap_or_else(|e| {
             serde_json::json!({ "error": { "message": e.to_string() } })

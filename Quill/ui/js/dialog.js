@@ -103,6 +103,24 @@ export function promptForNote(placeholder = 'Enter comment...') {
 }
 
 /**
+ * Show a draft-recovery dialog.
+ * @param {number} count
+ * @param {string|null} age
+ * @returns {Promise<'restore'|'discard'>}
+ */
+export function showRecoverDraftsDialog(count, age) {
+    const label = count === 1 ? '1 unsaved draft' : `${count} unsaved drafts`;
+    const suffix = age ? ` from ${age}` : '';
+    return showDialog(
+        `Quill has ${label}${suffix}. Restore them?`,
+        [
+            { label: 'Discard', value: 'discard' },
+            { label: 'Restore', value: 'restore', primary: true },
+        ]
+    );
+}
+
+/**
  * Show a save changes dialog.
  * @param {string} filename - The filename to show
  * @returns {Promise<'save'|'discard'|'cancel'>}

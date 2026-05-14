@@ -13,7 +13,8 @@ import { listen } from '@tauri-apps/api/event';
 import { initTabs, createTab, closeActiveTab, getActiveTab, setActiveTabModified, setActiveTabPath, openFileInTab, newTab, nextTab, prevTab, getAllTabs, getTabByPath, switchToTab, hasDirtyTabs, handleAppClose } from './tabs.js';
 import { initFind, showFindBar, hideFindBar, findNext, findPrev, isFindVisible } from './find.js';
 import { showToast, showSuccess, showError, showInfo } from './toast.js';
-import { initAutosave, clearDrafts } from './autosave.js';
+import { initAutosave, clearDrafts, getRecoverableDrafts, getDraftAge } from './autosave.js';
+import { showRecoverDraftsDialog } from './dialog.js';
 import { initOutline, toggleOutline, updateOutline, isOutlineVisible } from './outline.js';
 
 // Track state
@@ -88,8 +89,21 @@ async function init() {
         getSaveContent: () => embedCommentsInMarkdown(getSourceContent()),
     });
 
-    // Clear any old drafts and initialize tabs
-    clearDrafts();
+    // Offer to restore unsaved drafts from a previous session before
+    // initializing tabs (which would otherwise create a blank Untitled tab).
+    const recoverable = getRecoverableDrafts();
+    let restoreDrafts = null;
+    if (recoverable.length > 0) {
+        const choice = await showRecoverDraftsDialog(recoverable.length, getDraftAge());
+        if (choice === 'restore') {
+            restoreDrafts = recoverable;
+        } else {
+            clearDrafts();
+        }
+    } else {
+        clearDrafts();
+    }
+
     initTabs({
         onTabChange: handleTabChange,
         onContentRequest: getSourceContent,
@@ -100,12 +114,22 @@ async function init() {
         getTabComments: getTabComments,
     });
 
+    if (restoreDrafts) {
+        for (const d of restoreDrafts) {
+            ignoreNextChanges = 2;
+            openFileInTab(d.path, d.content, d.filename);
+            // Re-mark as modified once content loads — these are unsaved edits.
+            setTimeout(() => setActiveTabModified(true), 50);
+        }
+    }
+
     // Set up tab callbacks for toolbar
     setTabCallbacks({
         createNewTab: newTab,
         openFileInTab: openFileInTab,
         setActiveTabPath: setActiveTabPath,
         setActiveTabModified: setActiveTabModified,
+        getActiveTab: getActiveTab,
     });
 
     // Initialize autosave
@@ -326,23 +350,6 @@ function updatePosition(line, col) {
     }
 }
 
-/**
- * Update status bar for source mode.
- */
-function updateSourcePosition() {
-    const sourceEditor = document.getElementById('source-editor');
-    if (!sourceEditor) return;
-
-    const text = sourceEditor.value;
-    const selStart = sourceEditor.selectionStart;
-    const textBefore = text.substring(0, selStart);
-    const lines = textBefore.split('\n');
-    const line = lines.length;
-    const col = lines[lines.length - 1].length + 1;
-
-    updatePosition(line, col);
-}
-
 // ─── Export PDF ─────────────────────────────────────────────────────────
 
 async function handleExportPdf() {
@@ -370,11 +377,8 @@ function applyFontSize(size) {
     currentFontSize = size;
     document.documentElement.style.setProperty('--editor-font-size', `${size}px`);
 
-    // Apply to editor and source editor
     const editor = document.getElementById('editor');
-    const sourceEditor = document.getElementById('source-editor');
     if (editor) editor.style.fontSize = `${size}px`;
-    if (sourceEditor) sourceEditor.style.fontSize = `${size}px`;
 
     // Update label
     const label = document.getElementById('font-size-label');
@@ -662,79 +666,59 @@ async function handleOpenRecentPanelItem(filePath) {
 // ─── Drag and Drop ──────────────────────────────────────────────────────
 
 function setupDragAndDrop() {
+    // Tauri 2: file drops come through onDragDropEvent on the webview window,
+    // with real filesystem paths. Browser drop events on Tauri windows fire
+    // without a .path field, so we route through Rust to read content.
     const body = document.body;
+    const validExtensions = ['.md', '.markdown', '.txt'];
 
-    // Prevent default drag behaviors
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        body.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-        }, false);
-    });
-
-    // Visual feedback for drag over
-    ['dragenter', 'dragover'].forEach(eventName => {
-        body.addEventListener(eventName, () => {
+    const appWindow = getCurrentWindow();
+    appWindow.onDragDropEvent(async (event) => {
+        const { type } = event.payload;
+        if (type === 'enter' || type === 'over') {
             body.classList.add('drag-over');
-        }, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        body.addEventListener(eventName, () => {
+            return;
+        }
+        if (type === 'leave') {
             body.classList.remove('drag-over');
-        }, false);
-    });
+            return;
+        }
+        if (type !== 'drop') return;
+        body.classList.remove('drag-over');
 
-    // Handle file drop
-    body.addEventListener('drop', async (e) => {
-        const files = e.dataTransfer.files;
-        if (files.length === 0) return;
-
-        const file = files[0];
-
-        // Check if it's a markdown or text file
-        const validExtensions = ['.md', '.markdown', '.txt'];
-        const fileName = file.name.toLowerCase();
-        const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-
-        if (!isValid) {
-            showError('Please drop a Markdown (.md) or text file.');
+        const paths = event.payload.paths || [];
+        const validPaths = paths.filter(p =>
+            validExtensions.some(ext => p.toLowerCase().endsWith(ext))
+        );
+        if (validPaths.length === 0) {
+            if (paths.length > 0) {
+                showError('Please drop a Markdown (.md) or text file.');
+            }
             return;
         }
 
-        // Read the file content using FileReader
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            const content = event.target.result;
-            // PyWebView provides file.path for local files
-            const filePath = file.path || null;
-            const fileName = file.name;
+        const activeTab = getActiveTab();
+        const currentContent = getSourceContent();
+        const isBlank = activeTab && !activeTab.modified
+            && (!currentContent || currentContent.trim() === '');
 
-            // Check if current tab is blank (empty and unmodified)
-            const activeTab = getActiveTab();
-            const currentContent = getSourceContent();
-            const isBlank = !activeTab.modified && (!currentContent || currentContent.trim() === '');
-
-            if (isBlank) {
-                // Replace current blank tab with the opened file
-                ignoreNextChanges = 2;  // Prevent false dirty flag
-                setSourceContent(content);
-                setActiveTabPath(filePath, fileName);
-                if (filePath) {
-                    await setCurrentFile(filePath);
-                }
-            } else {
-                // Open in new tab (tabs.js handles the loading flag)
-                openFileInTab(filePath, content, fileName);
+        for (let i = 0; i < validPaths.length; i++) {
+            const filePath = validPaths[i];
+            const result = await openRecentFile(filePath);
+            if (!result || !result.success) {
+                showError(`Could not open ${filePath}`);
+                continue;
             }
-
-            focus();
-        };
-        reader.onerror = () => {
-            showError('Error reading file.');
-        };
-        reader.readAsText(file);
-    }, false);
+            if (i === 0 && isBlank) {
+                ignoreNextChanges = 2;
+                setSourceContent(result.content);
+                setActiveTabPath(result.path, null);
+            } else {
+                openFileInTab(result.path, result.content);
+            }
+        }
+        focus();
+    });
 }
 
 // ─── Keyboard Shortcuts ─────────────────────────────────────────────────

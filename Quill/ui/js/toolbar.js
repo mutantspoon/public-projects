@@ -11,6 +11,7 @@ let createNewTab = null;
 let openFileInTabCallback = null;
 let setActiveTabPathCallback = null;
 let setActiveTabModifiedCallback = null;
+let getActiveTabCallback = null;
 
 /**
  * Set tab integration callbacks.
@@ -20,6 +21,7 @@ export function setTabCallbacks(callbacks = {}) {
     openFileInTabCallback = callbacks.openFileInTab;
     setActiveTabPathCallback = callbacks.setActiveTabPath;
     setActiveTabModifiedCallback = callbacks.setActiveTabModified;
+    getActiveTabCallback = callbacks.getActiveTab;
 }
 import { editorViewCtx, schemaCtx } from '@milkdown/core';
 import { callCommand } from '@milkdown/utils';
@@ -40,7 +42,6 @@ let onContentChange = null;
 let getIsModified = null;
 let clearModifiedCallback = null;
 let getSaveContentCallback = null;
-let isSourceMode = false;
 
 /**
  * Initialize toolbar button handlers.
@@ -130,63 +131,22 @@ function closeHeadingDropdown() {
     }
 }
 
-// ─── Source Mode ────────────────────────────────────────────────────────
-
-export function handleSourceToggle() {
-    const editor = document.getElementById('editor');
-    const sourceEditor = document.getElementById('source-editor');
-    const sourceBtn = document.getElementById('btn-source');
-    const statusMode = document.getElementById('status-mode');
-    const statusModeSep = document.getElementById('status-mode-sep');
-
-    isSourceMode = !isSourceMode;
-
-    if (isSourceMode) {
-        // Switch to source mode
-        const content = getContent();
-        sourceEditor.value = content;
-        editor.classList.add('hidden');
-        sourceEditor.classList.remove('hidden');
-        sourceBtn.classList.add('active');
-        statusMode.style.display = 'inline';
-        statusModeSep.style.display = 'inline';
-        sourceEditor.focus();
-    } else {
-        // Switch to WYSIWYG mode
-        const content = sourceEditor.value;
-        setContent(content);
-        sourceEditor.classList.add('hidden');
-        editor.classList.remove('hidden');
-        sourceBtn.classList.remove('active');
-        statusMode.style.display = 'none';
-        statusModeSep.style.display = 'none';
-        focus();
-    }
-}
-
-function handleSourceInput(e) {
-    if (onContentChange) {
-        onContentChange(e.target.value);
-    }
-}
-
-export function isInSourceMode() {
-    return isSourceMode;
-}
+// ─── Content Access ─────────────────────────────────────────────────────
+// Source Mode was removed; these wrappers stay so the rest of the app keeps
+// a single name for "current document content." Inline them next refactor.
 
 export function getSourceContent() {
-    if (isSourceMode) {
-        return document.getElementById('source-editor').value;
-    }
     return getContent();
 }
 
 export function setSourceContent(content) {
-    if (isSourceMode) {
-        document.getElementById('source-editor').value = content;
-    } else {
-        setContent(content);
-    }
+    setContent(content);
+}
+
+// Retained so callers (find/replace, keyboard shortcut guards) don't need
+// to change. Source Mode is gone, so this is always false.
+export function isInSourceMode() {
+    return false;
 }
 
 // ─── File Operations ────────────────────────────────────────────────────
@@ -211,11 +171,7 @@ async function handleNew() {
         }
     }
 
-    if (isSourceMode) {
-        document.getElementById('source-editor').focus();
-    } else {
-        focus();
-    }
+    focus();
 }
 
 async function handleOpen() {
@@ -232,16 +188,15 @@ async function handleOpen() {
         }
     }
 
-    if (isSourceMode) {
-        document.getElementById('source-editor').focus();
-    } else {
-        focus();
-    }
+    focus();
 }
 
 export async function handleSave() {
     const content = getSaveContentCallback ? getSaveContentCallback() : getSourceContent();
-    const result = await saveFile(content);
+    // Pass the active tab's path explicitly so Rust writes to the right file
+    // even if set_current_file is in flight from a recent tab switch.
+    const activeTab = getActiveTabCallback ? getActiveTabCallback() : null;
+    const result = await saveFile(content, activeTab?.path || null);
     if (result.success) {
         clearModifiedCallback();
         await setModified(false);
@@ -256,28 +211,19 @@ export async function handleSave() {
 
         showSuccess(`Saved: ${result.path.replace(/\\/g, '/').split('/').pop()}`);
 
-        if (isSourceMode) {
-            document.getElementById('source-editor').focus();
-        } else {
-            focus();
-        }
+        focus();
         return true;
     } else if (result.error) {
         showError(`Error saving file: ${result.error}`);
     }
 
-    if (isSourceMode) {
-        document.getElementById('source-editor').focus();
-    } else {
-        focus();
-    }
+    focus();
     return false;
 }
 
 // ─── Formatting Commands ────────────────────────────────────────────────
 
 function handleBold() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (editor) {
         editor.action(callCommand(toggleStrongCommand.key));
@@ -286,7 +232,6 @@ function handleBold() {
 }
 
 function handleItalic() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (editor) {
         editor.action(callCommand(toggleEmphasisCommand.key));
@@ -295,7 +240,6 @@ function handleItalic() {
 }
 
 function handleStrikethrough() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (editor) {
         editor.action(callCommand(toggleStrikethroughCommand.key));
@@ -304,7 +248,6 @@ function handleStrikethrough() {
 }
 
 function handleCode() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (editor) {
         editor.action(callCommand(toggleInlineCodeCommand.key));
@@ -313,7 +256,6 @@ function handleCode() {
 }
 
 function handleLink() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (!editor) return;
 
@@ -340,7 +282,6 @@ function handleLink() {
 }
 
 function handleImage() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (!editor) return;
 
@@ -374,7 +315,6 @@ function handleImage() {
 }
 
 function handleHeading(level) {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (!editor) return;
 
@@ -414,7 +354,6 @@ function handleHeading(level) {
 }
 
 function handleBulletList() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (editor) {
         editor.action(callCommand(wrapInBulletListCommand.key));
@@ -423,7 +362,6 @@ function handleBulletList() {
 }
 
 function handleBlockquote() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (editor) {
         editor.action(callCommand(wrapInBlockquoteCommand.key));
@@ -432,7 +370,6 @@ function handleBlockquote() {
 }
 
 function handleNumberedList() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (editor) {
         editor.action(callCommand(wrapInOrderedListCommand.key));
@@ -441,7 +378,6 @@ function handleNumberedList() {
 }
 
 function handleTaskList() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (!editor) return;
 
@@ -470,7 +406,6 @@ function handleTaskList() {
 }
 
 export function handleCodeBlock() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (editor) {
         editor.action(callCommand(createCodeBlockCommand.key));
@@ -479,7 +414,6 @@ export function handleCodeBlock() {
 }
 
 function handleTable() {
-    if (isSourceMode) return;
     const editor = getEditor();
     if (!editor) return;
 
@@ -543,16 +477,13 @@ export function handleWordWrapToggle() {
 export function applyWordWrap(enabled) {
     wordWrapEnabled = enabled;
     const editor = document.getElementById('editor');
-    const sourceEditor = document.getElementById('source-editor');
     const wrapBtn = document.getElementById('btn-wrap');
 
     if (enabled) {
         editor?.classList.remove('no-wrap');
-        sourceEditor?.classList.remove('no-wrap');
         wrapBtn?.classList.remove('active');
     } else {
         editor?.classList.add('no-wrap');
-        sourceEditor?.classList.add('no-wrap');
         wrapBtn?.classList.add('active');
     }
 }

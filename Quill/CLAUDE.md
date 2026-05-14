@@ -102,7 +102,6 @@ Quill/
 | Strikethrough | Cmd+Shift+X | Ctrl+Shift+X |
 | Heading 1-3 | Cmd+1/2/3 | Ctrl+1/2/3 |
 | Bullet List | Cmd+Shift+8 | Ctrl+Shift+8 |
-| Toggle Source | Cmd+/ | Ctrl+/ |
 | Word Wrap | Alt+Z | Alt+Z |
 
 ## Color Schemes

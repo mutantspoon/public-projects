@@ -16,8 +16,6 @@ A lightweight, native markdown editor for macOS and Windows.
 
 * **Document Outline** - Navigate long documents via heading hierarchy
 
-* **Source Mode** - Toggle between WYSIWYG and raw Markdown view
-
 * **Export PDF** - Export documents to PDF
 
 * **Dark/Light Themes** - Easy on the eyes, day or night
@@ -59,7 +57,6 @@ Comments are stored as HTML tokens inside the `.md` file so they persist across 
 | Code Block    | Cmd+Shift+C | Ctrl+Shift+C |
 | Bullet List   | Cmd+Shift+8 | Ctrl+Shift+8 |
 | Heading 1/2/3 | Cmd+1/2/3   | Ctrl+1/2/3   |
-| Toggle Source | Cmd+/       | Ctrl+/       |
 | Word Wrap     | Alt+Z       | Alt+Z        |
 | Zoom In/Out   | Cmd++/-     | Ctrl++/-     |
 

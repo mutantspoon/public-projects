@@ -27,8 +27,8 @@ export async function openRecentFile(filePath) {
     return invoke('open_recent_file', { path: filePath });
 }
 
-export async function saveFile(content) {
-    return invoke('save_file', { content });
+export async function saveFile(content, path = null) {
+    return invoke('save_file', { content, path });
 }
 
 export async function saveFileAs(content) {

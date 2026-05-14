@@ -123,6 +123,18 @@ export function clearDrafts() {
 }
 
 /**
+ * Get drafts that have content and represent unsaved work.
+ * Filters out empty untitled tabs.
+ */
+export function getRecoverableDrafts() {
+    const drafts = loadDrafts();
+    if (!drafts) return [];
+    return drafts.filter(d =>
+        d.modified && d.content && d.content.trim().length > 0
+    );
+}
+
+/**
  * Get draft age as human-readable string.
  */
 export function getDraftAge() {
