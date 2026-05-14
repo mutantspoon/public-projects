@@ -63,6 +63,7 @@ async function init() {
         initialContent: '',
         onChange: handleContentChange,
         onSelectionChange: handleSelectionChange,
+        onDirty: handleDirtySignal,
     });
 
     // Install comment plugin (must come after editor init)
@@ -213,6 +214,19 @@ async function init() {
 
     // Focus the editor
     setTimeout(() => focus(), 100);
+}
+
+/**
+ * Per-transaction dirty signal. Fires on every keystroke so the tab is marked
+ * modified immediately, not just at word boundaries when markdown re-serializes.
+ */
+function handleDirtySignal() {
+    if (ignoreNextChanges > 0) return;
+    const tab = getActiveTab();
+    if (tab && !tab.modified) {
+        setActiveTabModified(true);
+        setModified(true);
+    }
 }
 
 /**

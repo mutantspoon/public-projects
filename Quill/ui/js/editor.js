@@ -32,15 +32,17 @@ import { EditorState } from 'prosemirror-state';
 let editorInstance = null;
 let onChangeCallback = null;
 let onSelectionChangeCallback = null;
+let onDirtyCallback = null;
 
 /**
  * Initialize the Milkdown editor.
  */
 export async function initEditor(container, options = {}) {
-    const { initialContent = '', onChange, onSelectionChange } = options;
+    const { initialContent = '', onChange, onSelectionChange, onDirty } = options;
 
     onChangeCallback = onChange;
     onSelectionChangeCallback = onSelectionChange;
+    onDirtyCallback = onDirty;
 
     editorInstance = await Editor.make()
         .config((ctx) => {
@@ -52,11 +54,20 @@ export async function initEditor(container, options = {}) {
             //     configureRefractor: () => Prism,
             // });
 
-            // Set up change listener
+            // Set up change listener. `markdownUpdated` only fires when the
+            // serialized markdown changes — Milkdown defers serialization
+            // until word boundaries, so mid-word edits would otherwise leave
+            // the tab "clean". `updated` fires on every ProseMirror transaction,
+            // so we use it purely as a dirty signal.
             ctx.get(listenerCtx)
                 .markdownUpdated((ctx, markdown, prevMarkdown) => {
                     if (onChangeCallback && markdown !== prevMarkdown) {
                         onChangeCallback(markdown);
+                    }
+                })
+                .updated((ctx, doc, prevDoc) => {
+                    if (onDirtyCallback && prevDoc && !doc.eq(prevDoc)) {
+                        onDirtyCallback();
                     }
                 });
         })
