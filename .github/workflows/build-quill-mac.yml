@@ -23,6 +23,14 @@ jobs:
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Ensure cargo shim resolves
+        shell: bash
+        run: |
+          rustup default stable
+          rustup show
+          cargo --version
+          rustc --version
+
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
         with:
@@ -103,6 +111,14 @@ jobs:
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Ensure cargo shim resolves
+        shell: bash
+        run: |
+          rustup default stable
+          rustup show
+          cargo --version
+          rustc --version
 
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
