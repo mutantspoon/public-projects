@@ -59,6 +59,7 @@ export function createTab(options = {}) {
         filename: filename || (path ? path.replace(/\\/g, '/').split('/').pop() : 'Untitled'),
         comments: [],
         editorState: null, // saved ProseMirror state (includes undo history)
+        scrollTop: 0,
     };
 
     tabs.push(tab);
@@ -90,6 +91,11 @@ export function switchToTab(tabId) {
             // doesn't contaminate history across documents.
             const view = getEditorView();
             if (view) currentTab.editorState = view.state;
+            // Scroll position lives on the DOM container, not in EditorState,
+            // so it must be saved separately or each tab would inherit the
+            // previous tab's scroll offset.
+            const editorEl = document.getElementById('editor');
+            if (editorEl) currentTab.scrollTop = editorEl.scrollTop;
         }
     }
 
@@ -124,6 +130,14 @@ export function switchToTab(tabId) {
     // Notify listeners
     if (onTabChange) {
         onTabChange(tab);
+    }
+
+    // Restore scroll position after the view has been updated. rAF ensures
+    // the new doc has been laid out, so scrollTop sticks.
+    const editorEl = document.getElementById('editor');
+    if (editorEl) {
+        const target = tab.scrollTop || 0;
+        requestAnimationFrame(() => { editorEl.scrollTop = target; });
     }
 
     renderTabs();

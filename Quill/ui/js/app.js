@@ -300,6 +300,13 @@ function handleTabChange(tab) {
     if ((!tab.comments || !tab.comments.length) && tab.content) {
         parseCommentsFromMarkdown(tab.content);
     }
+
+    // Refresh outline so it reflects the active tab. Without this, closing
+    // the last document (which creates a fresh Untitled tab) leaves the
+    // outline showing the previous document's headings.
+    if (isOutlineVisible()) {
+        updateOutline();
+    }
 }
 
 /**
