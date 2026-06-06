@@ -35,7 +35,8 @@ import {
     createCodeBlockCommand,
 } from '@milkdown/preset-commonmark';
 import { toggleStrikethroughCommand, insertTableCommand } from '@milkdown/preset-gfm';
-import { setBlockType } from '@milkdown/prose/commands';
+import { setBlockType, toggleMark } from '@milkdown/prose/commands';
+import { promptForText } from './dialog.js';
 
 // Store callbacks
 let onContentChange = null;
@@ -56,6 +57,20 @@ export function initToolbar(callbacks = {}) {
     document.querySelectorAll('.toolbar-btn').forEach(btn => {
         btn.addEventListener('mousedown', (e) => {
             e.preventDefault();
+        });
+    });
+
+    // After any format/block-affecting button fires a command, refresh
+    // button states on the next frame so toggles light up immediately
+    // (without waiting for the user to type or move the cursor).
+    const stateRefreshIds = [
+        'btn-bold', 'btn-italic', 'btn-strike', 'btn-code', 'btn-link',
+        'btn-quote', 'btn-codeblock', 'btn-bullet', 'btn-numlist', 'btn-task',
+        'btn-h1', 'btn-h2', 'btn-h3',
+    ];
+    stateRefreshIds.forEach(id => {
+        document.getElementById(id)?.addEventListener('click', () => {
+            requestAnimationFrame(updateButtonStates);
         });
     });
 
@@ -223,90 +238,119 @@ export async function handleSave() {
 
 // ─── Formatting Commands ────────────────────────────────────────────────
 
-function handleBold() {
+/**
+ * Toggle a mark at the current cursor. Works on both ranges (toggles across
+ * the selection) and empty selections (flips the storedMarks so the next
+ * typed character carries the mark). For empty selections, ProseMirror's
+ * toggleMark already does the right thing — we still go through it for
+ * consistency, but explicitly handle the case where the mark needs to be
+ * forced on/off to keep behavior predictable across providers.
+ */
+function toggleMarkAtCursor(markName) {
     const editor = getEditor();
-    if (editor) {
-        editor.action(callCommand(toggleStrongCommand.key));
+    if (!editor) { focus(); return; }
+    try {
+        const view = editor.ctx.get(editorViewCtx);
+        const schema = editor.ctx.get(schemaCtx);
+        // Common Milkdown/GFM mark name aliases
+        const aliases = {
+            strong: ['strong'],
+            emphasis: ['emphasis', 'em'],
+            strikethrough: ['strike_through', 'strikethrough'],
+            code: ['inlineCode', 'inline_code', 'code'],
+        };
+        const markType = (aliases[markName] || [markName])
+            .map((n) => schema.marks[n])
+            .find(Boolean);
+        if (!markType) { focus(); return; }
+
+        const { state, dispatch } = view;
+        const { selection } = state;
+
+        if (selection.empty) {
+            // Flip storedMarks so the next character typed carries the mark.
+            const current = state.storedMarks || selection.$from.marks();
+            const has = !!markType.isInSet(current);
+            const next = has
+                ? markType.removeFromSet(current)
+                : markType.create().addToSet(current);
+            dispatch(state.tr.setStoredMarks(next));
+        } else {
+            toggleMark(markType)(state, dispatch);
+        }
+    } catch (e) {
+        console.error(`Error toggling ${markName}:`, e);
     }
     focus();
 }
 
-function handleItalic() {
-    const editor = getEditor();
-    if (editor) {
-        editor.action(callCommand(toggleEmphasisCommand.key));
-    }
-    focus();
-}
+function handleBold()          { toggleMarkAtCursor('strong'); }
+function handleItalic()        { toggleMarkAtCursor('emphasis'); }
+function handleStrikethrough() { toggleMarkAtCursor('strikethrough'); }
+function handleCode()          { toggleMarkAtCursor('code'); }
 
-function handleStrikethrough() {
-    const editor = getEditor();
-    if (editor) {
-        editor.action(callCommand(toggleStrikethroughCommand.key));
-    }
-    focus();
-}
-
-function handleCode() {
-    const editor = getEditor();
-    if (editor) {
-        editor.action(callCommand(toggleInlineCodeCommand.key));
-    }
-    focus();
-}
-
-function handleLink() {
+async function handleLink() {
     const editor = getEditor();
     if (!editor) return;
 
-    const url = prompt('Enter URL:');
-    if (!url) return;
+    // Capture the current selection BEFORE the modal steals focus.
+    const view = editor.ctx.get(editorViewCtx);
+    const { from, to } = view.state.selection;
+    const hasSelection = from !== to;
+    const selectedText = hasSelection ? view.state.doc.textBetween(from, to, ' ') : '';
+
+    const url = await promptForText({
+        title: 'Insert link',
+        placeholder: 'https://example.com',
+        confirmLabel: 'Insert',
+    });
+    if (!url) { focus(); return; }
 
     try {
-        const view = editor.ctx.get(editorViewCtx);
-        const { state, dispatch } = view;
-        const { from, to } = state.selection;
-        const selectedText = from !== to ? state.doc.textBetween(from, to) : 'link text';
-
-        // Create link node using schema
         const schema = editor.ctx.get(schemaCtx);
-        const linkMark = schema.marks.link.create({ href: url });
-        const textNode = schema.text(selectedText, [linkMark]);
-
-        const tr = state.tr.replaceSelectionWith(textNode, false);
-        dispatch(tr);
+        const linkMark = schema.marks.link?.create({ href: url });
+        if (!linkMark) { focus(); return; }
+        const state = view.state;
+        const text = selectedText || url;
+        const tr = state.tr
+            .insertText(text, from, to)
+            .addMark(from, from + text.length, linkMark);
+        view.dispatch(tr);
     } catch (e) {
         console.error('Error inserting link:', e);
     }
     focus();
 }
 
-function handleImage() {
+async function handleImage() {
     const editor = getEditor();
     if (!editor) return;
 
-    const url = prompt('Enter image URL:');
-    if (!url) return;
+    const url = await promptForText({
+        title: 'Insert image URL',
+        placeholder: 'https://example.com/image.png',
+        confirmLabel: 'Next',
+    });
+    if (!url) { focus(); return; }
 
-    const alt = prompt('Enter alt text (optional):', '') || 'image';
+    const alt = await promptForText({
+        title: 'Alt text (optional)',
+        placeholder: 'Describe the image',
+        confirmLabel: 'Insert',
+    }) || '';
 
     try {
         const view = editor.ctx.get(editorViewCtx);
-        const { state, dispatch } = view;
         const schema = editor.ctx.get(schemaCtx);
-
-        // Check if image node type exists
         const imageType = schema.nodes.image;
+        const { state } = view;
         if (imageType) {
-            const imageNode = imageType.create({ src: url, alt: alt });
-            const tr = state.tr.replaceSelectionWith(imageNode);
-            dispatch(tr);
+            const imageNode = imageType.create({ src: url, alt });
+            view.dispatch(state.tr.replaceSelectionWith(imageNode, false));
         } else {
-            // Fallback: insert markdown image syntax
-            const { from } = state.selection;
-            const imageMarkdown = `![${alt}](${url})`;
-            const tr = state.tr.insertText(imageMarkdown, from);
-            dispatch(tr);
+            // Fallback to raw markdown
+            const text = `![${alt}](${url})`;
+            view.dispatch(state.tr.insertText(text));
         }
     } catch (e) {
         console.error('Error inserting image:', e);
@@ -377,6 +421,12 @@ function handleNumberedList() {
     focus();
 }
 
+// Milkdown's GFM preset doesn't have a separate task_list_item node —
+// task items are list_item nodes with a `checked` attr (null = regular
+// bullet, false = unchecked task, true = checked task). To "turn the
+// current line into a task," we wrap it in a bullet list (if not already)
+// then set every enclosing list_item's checked attr to false. Toggling
+// off resets checked → null so it becomes a plain bullet.
 function handleTaskList() {
     const editor = getEditor();
     if (!editor) return;
@@ -384,25 +434,51 @@ function handleTaskList() {
     try {
         const view = editor.ctx.get(editorViewCtx);
         const schema = editor.ctx.get(schemaCtx);
-        const { state, dispatch } = view;
+        const listItemType = schema.nodes.list_item;
+        if (!listItemType) { focus(); return; }
 
-        // Insert a task list item as markdown and let Milkdown parse it
-        const taskListNode = schema.nodes.task_list_item;
-        if (taskListNode) {
-            // Create task list item
-            const taskItem = taskListNode.create({ checked: false });
-            const tr = state.tr.replaceSelectionWith(taskItem);
-            dispatch(tr);
-        } else {
-            // Fallback: insert markdown text
-            const { from } = state.selection;
-            const tr = state.tr.insertText('- [ ] ', from);
-            dispatch(tr);
+        // Step 1: if we're not in any list, wrap in a bullet list first.
+        // (If we're already in a list — bullet or ordered — just flip the
+        // checked attr on the enclosing list_item.)
+        if (!isInAnyList(view.state)) {
+            editor.action(callCommand(wrapInBulletListCommand.key));
         }
+
+        // Re-read state after the wrap dispatch.
+        const { state } = view;
+        const { $from } = state.selection;
+
+        // Find the nearest enclosing list_item.
+        let depth = -1;
+        for (let d = $from.depth; d >= 0; d--) {
+            if ($from.node(d).type === listItemType) { depth = d; break; }
+        }
+        if (depth === -1) { focus(); return; }
+
+        const itemNode = $from.node(depth);
+        const itemPos = $from.before(depth);
+        const wasTask = itemNode.attrs?.checked != null;
+
+        // Toggle: task → plain bullet, plain bullet → task (unchecked)
+        const nextChecked = wasTask ? null : false;
+        const tr = state.tr.setNodeMarkup(itemPos, undefined, {
+            ...itemNode.attrs,
+            checked: nextChecked,
+        });
+        view.dispatch(tr);
     } catch (e) {
-        console.error('Error inserting task list:', e);
+        console.error('Error toggling task list:', e);
     }
     focus();
+}
+
+function isInAnyList(state) {
+    const { $from } = state.selection;
+    for (let d = $from.depth; d >= 0; d--) {
+        const name = $from.node(d).type.name;
+        if (name === 'bullet_list' || name === 'ordered_list') return true;
+    }
+    return false;
 }
 
 export function handleCodeBlock() {
@@ -533,15 +609,25 @@ export function updateButtonStates() {
         setBtn('btn-bold',   markActive(mark('strong')));
         setBtn('btn-italic', markActive(mark('emphasis') || mark('em')));
         setBtn('btn-strike', markActive(mark('strike_through') || mark('strikethrough')));
-        setBtn('btn-code',   markActive(mark('inline_code') || mark('code')));
+        setBtn('btn-code',   markActive(mark('inlineCode') || mark('inline_code') || mark('code')));
         setBtn('btn-link',   markActive(mark('link')));
+
+        // Task list: in Milkdown GFM, a task item is a list_item with
+        // attrs.checked !== null. Plain bullet items have checked == null.
+        let inTask = false;
+        for (let d = $from.depth; d >= 0; d--) {
+            const node = $from.node(d);
+            if (node.type.name === 'list_item' && node.attrs && node.attrs.checked != null) {
+                inTask = true; break;
+            }
+        }
 
         // Block containers
         setBtn('btn-quote',     inNode('blockquote'));
         setBtn('btn-codeblock', inNode('code_block', 'fence'));
-        setBtn('btn-bullet',    inNode('bullet_list') && !inNode('task_list', 'task_list_item'));
+        setBtn('btn-bullet',    inNode('bullet_list') && !inTask);
         setBtn('btn-numlist',   inNode('ordered_list'));
-        setBtn('btn-task',      inNode('task_list', 'task_list_item'));
+        setBtn('btn-task',      inTask);
         setBtn('btn-heading',   inNode('heading'));
     } catch (e) {
         // Ignore — schema may not be ready on first call

@@ -103,6 +103,72 @@ export function promptForNote(placeholder = 'Enter comment...') {
 }
 
 /**
+ * Prompt the user for a single line of text (URL, alt text, etc).
+ * Tauri's webview blocks window.prompt(), so this is the in-app replacement.
+ *
+ * @param {object} opts
+ * @param {string} opts.title
+ * @param {string} [opts.placeholder]
+ * @param {string} [opts.initialValue]
+ * @param {string} [opts.confirmLabel]
+ * @returns {Promise<string|null>}
+ */
+export function promptForText({ title, placeholder = '', initialValue = '', confirmLabel = 'OK' }) {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('modal-overlay');
+        const messageEl = document.getElementById('modal-message');
+        const buttonsEl = document.getElementById('modal-buttons');
+
+        messageEl.innerHTML = '';
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size:13px;color:var(--text);opacity:0.9;margin-bottom:10px;text-align:left;';
+        label.textContent = title;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = initialValue;
+        input.placeholder = placeholder;
+        input.style.cssText = 'width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--background);color:var(--text);font-size:13px;outline:none;box-sizing:border-box;font-family:inherit;';
+        messageEl.appendChild(label);
+        messageEl.appendChild(input);
+
+        buttonsEl.innerHTML = '';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'modal-btn';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', () => {
+            cleanup();
+            resolve(null);
+        });
+
+        const okBtn = document.createElement('button');
+        okBtn.className = 'modal-btn primary';
+        okBtn.textContent = confirmLabel;
+        okBtn.addEventListener('click', () => {
+            const value = input.value.trim();
+            cleanup();
+            resolve(value || null);
+        });
+
+        buttonsEl.appendChild(cancelBtn);
+        buttonsEl.appendChild(okBtn);
+
+        overlay.classList.remove('hidden');
+        setTimeout(() => { input.focus(); input.select(); }, 50);
+
+        function cleanup() {
+            overlay.classList.add('hidden');
+            messageEl.innerHTML = '';
+        }
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); okBtn.click(); }
+            else if (e.key === 'Escape') cancelBtn.click();
+        });
+    });
+}
+
+/**
  * Show a draft-recovery dialog.
  * @param {number} count
  * @param {string|null} age

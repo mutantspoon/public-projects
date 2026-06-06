@@ -7,9 +7,84 @@ import { commonmark } from '@milkdown/preset-commonmark';
 import { gfm } from '@milkdown/preset-gfm';
 import { history } from '@milkdown/plugin-history';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
-import { getMarkdown, replaceAll, insert } from '@milkdown/utils';
+import { getMarkdown, replaceAll, insert, $prose } from '@milkdown/utils';
 import { editorViewCtx, serializerCtx, parserCtx } from '@milkdown/core';
-import { EditorState } from 'prosemirror-state';
+import { EditorState, Plugin } from '@milkdown/prose/state';
+
+// ProseMirror, by default, drops "stored marks" (the marks queued for the
+// next-typed character) the moment the cursor lands in an empty block —
+// which means a single Enter at the end of a bold paragraph clears bold.
+// This plugin restores them: whenever a transaction leaves the cursor in
+// an empty block and the previous state had inline marks active, we
+// re-push those marks (filtered to ones valid in the new block).
+const keepMarksOnSplit = $prose(() => new Plugin({
+    appendTransaction(transactions, oldState, newState) {
+        if (!transactions.some((tr) => tr.docChanged)) return null;
+
+        const newSel = newState.selection;
+        if (!newSel.empty) return null;
+        if (newSel.$head.parent.content.size !== 0) return null;
+
+        const oldSel = oldState.selection;
+        const previousMarks = oldState.storedMarks || oldSel.$head.marks();
+        if (!previousMarks || previousMarks.length === 0) return null;
+
+        const newBlock = newSel.$head.parent;
+        const validMarks = previousMarks.filter((m) => newBlock.type.allowsMarkType(m.type));
+        if (validMarks.length === 0) return null;
+
+        const existing = newState.storedMarks || [];
+        const alreadySet = validMarks.every((m) => m.isInSet(existing)) && existing.length === validMarks.length;
+        if (alreadySet) return null;
+
+        return newState.tr.setStoredMarks(validMarks);
+    },
+}));
+
+// Milkdown's GFM uses `list_item` with attrs.checked != null to represent
+// a task list item. ProseMirror's split creates new items with default
+// attrs (checked: null), so pressing Enter on a task drops you back into
+// a plain bullet. Inherit `checked` from the previous sibling so a task
+// list keeps producing task items.
+const inheritTaskCheckedOnSplit = $prose(() => new Plugin({
+    appendTransaction(transactions, oldState, newState) {
+        if (!transactions.some((tr) => tr.docChanged)) return null;
+
+        const { selection } = newState;
+        if (!selection.empty) return null;
+
+        const { $from } = selection;
+        const listItemType = newState.schema.nodes.list_item;
+        if (!listItemType) return null;
+
+        // Find the nearest enclosing list_item
+        let depth = -1;
+        for (let d = $from.depth; d >= 0; d--) {
+            if ($from.node(d).type === listItemType) { depth = d; break; }
+        }
+        if (depth === -1) return null;
+
+        const item = $from.node(depth);
+        if (item.attrs.checked != null) return null; // already a task — nothing to do
+
+        // Only act on a freshly-empty list_item (just split off)
+        if (item.textContent.length !== 0) return null;
+
+        // Inspect the previous sibling list_item
+        const itemPos = $from.before(depth);
+        const list = $from.node(depth - 1);
+        const listStart = $from.before(depth - 1);
+        const indexInList = $from.index(depth - 1);
+        if (indexInList === 0) return null;
+        const prev = list.child(indexInList - 1);
+        if (prev.type !== listItemType || prev.attrs.checked == null) return null;
+
+        return newState.tr.setNodeMarkup(itemPos, undefined, {
+            ...item.attrs,
+            checked: false,
+        });
+    },
+}));
 
 // Prism syntax highlighting - uncomment after running: npm install @milkdown/plugin-prism prismjs
 // import { prism, prismConfig } from '@milkdown/plugin-prism';
@@ -75,6 +150,8 @@ export async function initEditor(container, options = {}) {
         .use(gfm)
         .use(history)
         .use(listener)
+        .use(keepMarksOnSplit)
+        .use(inheritTaskCheckedOnSplit)
         // .use(prism)  // Uncomment after npm install
         .create();
 
