@@ -491,3 +491,59 @@ export function applyWordWrap(enabled) {
 export function isWordWrapEnabled() {
     return wordWrapEnabled;
 }
+
+// ─── Cursor-Aware Button States ──────────────────────────────────────────
+// Syncs .active class on format buttons with the ProseMirror selection so
+// the toolbar reflects what's under the cursor (Bold lit inside **bold**,
+// Bullet lit inside a list, etc).
+
+function setBtn(id, on) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', !!on);
+}
+
+export function updateButtonStates() {
+    const editor = getEditor();
+    if (!editor) return;
+    try {
+        const view = editor.ctx.get(editorViewCtx);
+        const schema = editor.ctx.get(schemaCtx);
+        const { state } = view;
+        const { selection } = state;
+        const { $from } = selection;
+
+        const mark = (name) => schema.marks[name];
+        const markActive = (markType) => {
+            if (!markType) return false;
+            if (selection.empty) {
+                return !!markType.isInSet(state.storedMarks || $from.marks());
+            }
+            return state.doc.rangeHasMark(selection.from, selection.to, markType);
+        };
+
+        // Walk up the ancestor chain by type name (handles aliases)
+        const inNode = (...names) => {
+            for (let d = $from.depth; d >= 0; d--) {
+                if (names.includes($from.node(d).type.name)) return true;
+            }
+            return false;
+        };
+
+        // Inline marks
+        setBtn('btn-bold',   markActive(mark('strong')));
+        setBtn('btn-italic', markActive(mark('emphasis') || mark('em')));
+        setBtn('btn-strike', markActive(mark('strike_through') || mark('strikethrough')));
+        setBtn('btn-code',   markActive(mark('inline_code') || mark('code')));
+        setBtn('btn-link',   markActive(mark('link')));
+
+        // Block containers
+        setBtn('btn-quote',     inNode('blockquote'));
+        setBtn('btn-codeblock', inNode('code_block', 'fence'));
+        setBtn('btn-bullet',    inNode('bullet_list') && !inNode('task_list', 'task_list_item'));
+        setBtn('btn-numlist',   inNode('ordered_list'));
+        setBtn('btn-task',      inNode('task_list', 'task_list_item'));
+        setBtn('btn-heading',   inNode('heading'));
+    } catch (e) {
+        // Ignore — schema may not be ready on first call
+    }
+}

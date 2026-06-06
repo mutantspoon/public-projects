@@ -4,7 +4,7 @@
  */
 
 import { initEditor, getContent, getWordCount, focus } from './editor.js';
-import { initToolbar, handleSave, applyTheme, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks, isInSourceMode } from './toolbar.js';
+import { initToolbar, handleSave, applyTheme, getSourceContent, setSourceContent, handleWordWrapToggle, applyWordWrap, handleCodeBlock, setTabCallbacks, isInSourceMode, updateButtonStates } from './toolbar.js';
 import { getSettings, setModified, getApi, setFontSize, getRecentFiles, openRecentFile, clearRecentFiles, setCurrentFile, getStartupFile, revealInFinder, savePdf, getCommentsEnabled, setCommentsEnabled } from './bridge.js';
 import { initComments, installCommentPlugin, toggleCommentPanel, setTabComments, getTabComments, parseCommentsFromMarkdown, embedCommentsInMarkdown, startNewComment, setCommentsEnabledLocal } from './comments.js';
 import { generatePdfB64 } from './pdf-export.js';
@@ -283,6 +283,8 @@ function handleContentChange(markdown) {
         updateOutline();
     }
 
+    // Refresh toolbar state to mirror cursor context
+    updateButtonStates();
 }
 
 /**
@@ -327,6 +329,7 @@ async function updateWindowTitle(tab) {
  */
 function handleSelectionChange({ line, col }) {
     updatePosition(line, col);
+    updateButtonStates();
 }
 
 /**
@@ -540,8 +543,7 @@ function setupReadingViewToggles() {
 }
 
 function applyAccentColor(hex) {
-    const editor = document.getElementById('editor');
-    if (editor) editor.style.setProperty('--read-accent', hex);
+    document.documentElement.style.setProperty('--read-accent', hex);
     localStorage.setItem(READ_ACCENT_COLOR_KEY, hex);
 }
 
