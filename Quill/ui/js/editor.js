@@ -86,24 +86,6 @@ const inheritTaskCheckedOnSplit = $prose(() => new Plugin({
     },
 }));
 
-// Prism syntax highlighting - uncomment after running: npm install @milkdown/plugin-prism prismjs
-// import { prism, prismConfig } from '@milkdown/plugin-prism';
-// import Prism from 'prismjs';
-// import 'prismjs/components/prism-javascript';
-// import 'prismjs/components/prism-typescript';
-// import 'prismjs/components/prism-python';
-// import 'prismjs/components/prism-css';
-// import 'prismjs/components/prism-json';
-// import 'prismjs/components/prism-bash';
-// import 'prismjs/components/prism-markdown';
-// import 'prismjs/components/prism-yaml';
-// import 'prismjs/components/prism-go';
-// import 'prismjs/components/prism-rust';
-// import 'prismjs/components/prism-java';
-// import 'prismjs/components/prism-c';
-// import 'prismjs/components/prism-cpp';
-// import 'prismjs/components/prism-sql';
-
 let editorInstance = null;
 let onChangeCallback = null;
 let onSelectionChangeCallback = null;
@@ -123,11 +105,6 @@ export async function initEditor(container, options = {}) {
         .config((ctx) => {
             ctx.set(rootCtx, container);
             ctx.set(defaultValueCtx, initialContent);
-
-            // Configure Prism for syntax highlighting (uncomment after npm install)
-            // ctx.set(prismConfig.key, {
-            //     configureRefractor: () => Prism,
-            // });
 
             // Set up change listener. `markdownUpdated` only fires when the
             // serialized markdown changes — Milkdown defers serialization
@@ -152,7 +129,6 @@ export async function initEditor(container, options = {}) {
         .use(listener)
         .use(keepMarksOnSplit)
         .use(inheritTaskCheckedOnSplit)
-        // .use(prism)  // Uncomment after npm install
         .create();
 
     // Set up selection change listener
@@ -193,34 +169,13 @@ function updateSelectionInfo() {
     try {
         const view = editorInstance.ctx.get(editorViewCtx);
         const { state } = view;
-        const { selection } = state;
-        const { from } = selection;
+        const { from } = state.selection;
 
-        // Calculate line and column
-        const doc = state.doc;
-        let pos = 0;
-        let line = 1;
-        let col = 1;
-
-        doc.descendants((node, nodePos) => {
-            if (nodePos >= from) return false;
-
-            if (node.isBlock) {
-                if (nodePos + node.nodeSize <= from) {
-                    line++;
-                    col = 1;
-                } else {
-                    col = from - nodePos;
-                }
-            }
-            return true;
-        });
-
-        // Simpler approach: count newlines in text content up to position
-        const textBefore = doc.textBetween(0, from, '\n');
+        // Count newlines in text content up to the cursor.
+        const textBefore = state.doc.textBetween(0, from, '\n');
         const lines = textBefore.split('\n');
-        line = lines.length;
-        col = lines[lines.length - 1].length + 1;
+        const line = lines.length;
+        const col = lines[lines.length - 1].length + 1;
 
         onSelectionChangeCallback({ line, col });
     } catch (e) {
@@ -333,21 +288,6 @@ export function insertText(text) {
         editorInstance.action(insert(text));
     } catch (e) {
         console.error('Error inserting text:', e);
-    }
-}
-
-/**
- * Execute a command on the editor.
- */
-export function executeCommand(command) {
-    if (!editorInstance) return;
-
-    try {
-        const view = editorInstance.ctx.get(editorViewCtx);
-        // Commands will be handled via prosemirror commands
-        // This is a placeholder for formatting commands
-    } catch (e) {
-        console.error('Error executing command:', e);
     }
 }
 

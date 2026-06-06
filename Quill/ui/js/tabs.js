@@ -132,12 +132,15 @@ export function switchToTab(tabId) {
         onTabChange(tab);
     }
 
-    // Restore scroll position after the view has been updated. rAF ensures
-    // the new doc has been laid out, so scrollTop sticks.
+    // Restore scroll position after the view has been updated. A single rAF
+    // can land before Milkdown finishes laying out the restored doc, leaving
+    // scrollTop at 0; a second rAF waits for that layout pass to complete.
     const editorEl = document.getElementById('editor');
     if (editorEl) {
         const target = tab.scrollTop || 0;
-        requestAnimationFrame(() => { editorEl.scrollTop = target; });
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => { editorEl.scrollTop = target; });
+        });
     }
 
     renderTabs();
@@ -398,42 +401,6 @@ export function clearAllTabs() {
     activeTabId = null;
     nextTabId = 1;
     createTab();
-}
-
-/**
- * Restore tabs from saved drafts.
- * @param {Array} drafts - Array of draft objects
- */
-export function restoreTabsFromDrafts(drafts) {
-    if (!drafts || drafts.length === 0) return false;
-
-    // Clear existing tabs without creating a new one
-    tabs = [];
-    activeTabId = null;
-
-    // Restore each draft as a tab
-    drafts.forEach((draft, index) => {
-        const tab = {
-            id: nextTabId++,
-            path: draft.path,
-            content: draft.content || '',
-            modified: draft.modified || false,
-            filename: draft.filename || (draft.path ? draft.path.replace(/\\/g, '/').split('/').pop() : 'Untitled'),
-            comments: [],
-            editorState: null,
-        };
-        tabs.push(tab);
-
-        // Activate first tab
-        if (index === 0) {
-            activeTabId = tab.id;
-            setContent(stripCommentTokens(tab.content));
-            clearHistory();
-        }
-    });
-
-    renderTabs();
-    return true;
 }
 
 /**

@@ -33,9 +33,11 @@ export function clearModified() {
 }
 
 export function setLoadingContent(ignore = true) {
-    // Ignore the next change event(s) after loading content
+    // Ignore the next change event(s) after loading content. Accumulate
+    // rather than assign — back-to-back loads (drafts restore, multi-drop)
+    // need the tokens to stack so later loads aren't falsely marked modified.
     if (ignore) {
-        ignoreNextChanges = 2;  // Ignore a couple events to be safe
+        ignoreNextChanges += 2;
     }
 }
 
@@ -116,7 +118,9 @@ async function init() {
 
     if (restoreDrafts) {
         for (const d of restoreDrafts) {
-            ignoreNextChanges = 2;
+            // Accumulate (not assign) so later iterations don't wipe out
+            // ignore tokens earlier tabs haven't consumed yet.
+            ignoreNextChanges += 2;
             openFileInTab(d.path, d.content, d.filename);
             // Re-mark as modified once content loads — these are unsaved edits.
             setTimeout(() => setActiveTabModified(true), 50);
@@ -176,7 +180,7 @@ async function init() {
     try {
         const startupFile = await getStartupFile();
         if (startupFile) {
-            ignoreNextChanges = 2;
+            ignoreNextChanges += 2;
             openFileInTab(startupFile.path, startupFile.content);
         }
     } catch (e) {
@@ -187,7 +191,6 @@ async function init() {
     try {
         const appWindow = getCurrentWindow();
         await appWindow.onCloseRequested(async (event) => {
-            console.log('[quill] onCloseRequested fired');
             event.preventDefault();
             const okToClose = await handleAppClose();
             if (okToClose) {
@@ -195,7 +198,6 @@ async function init() {
                 api.force_close().catch(() => {});
             }
         });
-        console.log('[quill] onCloseRequested registered');
     } catch (e) {
         console.error('[quill] onCloseRequested registration failed', e);
     }
@@ -212,14 +214,12 @@ async function init() {
     // Handle Cmd+Q (custom macOS menu item).
     try {
         await listen('quit-requested', async () => {
-            console.log('[quill] quit-requested received');
             const okToClose = await handleAppClose();
             if (okToClose) {
                 const api = await getApi();
                 api.force_close().catch(() => {});
             }
         });
-        console.log('[quill] quit-requested listener registered');
     } catch (e) {
         console.error('[quill] quit-requested listen failed', e);
     }
@@ -227,14 +227,12 @@ async function init() {
     // Handle Cmd+W (custom macOS menu item).
     try {
         await listen('close-window-requested', async () => {
-            console.log('[quill] close-window-requested received');
             const okToClose = await handleAppClose();
             if (okToClose) {
                 const api = await getApi();
                 api.force_close().catch(() => {});
             }
         });
-        console.log('[quill] close-window-requested listener registered');
     } catch (e) {
         console.error('[quill] close-window-requested listen failed', e);
     }
@@ -265,10 +263,6 @@ function handleContentChange(markdown) {
         ignoreNextChanges--;
         updateWordCount();
         return;
-    }
-    if (ignoreNextChanges < 0) {
-        console.warn('ignoreNextChanges went negative — more change events fired during load than expected');
-        ignoreNextChanges = 0;
     }
 
     const tab = getActiveTab();
@@ -834,7 +828,7 @@ function setupDragAndDrop() {
                 continue;
             }
             if (i === 0 && isBlank) {
-                ignoreNextChanges = 2;
+                ignoreNextChanges += 2;
                 setSourceContent(result.content);
                 setActiveTabPath(result.path, null);
             } else {

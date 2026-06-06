@@ -105,12 +105,15 @@ export function updateOutline() {
 
         const headings = [];
 
-        // Extract all headings from the document
+        // Extract all headings. Returning false from the heading branch
+        // skips walking into inline text children we already captured via
+        // node.textContent.
         doc.descendants((node, pos) => {
             if (node.type.name === 'heading') {
                 const level = node.attrs.level || 1;
                 const text = node.textContent || 'Untitled';
                 headings.push({ level, text, pos });
+                return false;
             }
             return true;
         });

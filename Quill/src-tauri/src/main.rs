@@ -184,9 +184,9 @@ fn read_file(path: &str) -> Result<String, String> {
         ));
     }
     let bytes = fs::read(p).map_err(|e| e.to_string())?;
-    match String::from_utf8(bytes.clone()) {
+    match String::from_utf8(bytes) {
         Ok(s) => Ok(s),
-        Err(_) => Ok(bytes.iter().map(|&b| b as char).collect()),
+        Err(e) => Ok(e.into_bytes().into_iter().map(|b| b as char).collect()),
     }
 }
 
@@ -737,7 +737,7 @@ fn main() {
                             serde_json::json!({ "path": path, "content": content }),
                         );
                     }
-                    Err(_) => {}
+                    Err(e) => eprintln!("[quill] second-instance file read failed: {e}"),
                 }
             }
         }))
@@ -869,13 +869,19 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            // Suppress unused-variable warnings on non-macOS builds where the body below compiles away.
+            #[cfg(not(target_os = "macos"))]
+            let _ = (&app, &event);
+
             // Handle macOS "Open with" — fires on fresh launch AND when app is already running.
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = &event {
                 for url in urls {
                     if let Ok(path) = url.to_file_path() {
                         let path_str = path.to_string_lossy().to_string();
-                        if let Ok(content) = fs::read_to_string(&path) {
+                        // Route through read_file() so MAX_FILE_SIZE applies (a multi-GB
+                        // drag-dropped file would otherwise blow memory).
+                        if let Ok(content) = read_file(&path_str) {
                             // Store as startup_file so get_startup_file() picks it up
                             // if the webview isn't ready yet (fresh launch case).
                             {
@@ -895,6 +901,5 @@ fn main() {
                     }
                 }
             }
-            let _ = event;
         });
 }

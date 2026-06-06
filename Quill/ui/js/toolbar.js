@@ -246,22 +246,31 @@ export async function handleSave() {
  * consistency, but explicitly handle the case where the mark needs to be
  * forced on/off to keep behavior predictable across providers.
  */
+// Common Milkdown/GFM mark name aliases — Milkdown's commonmark and GFM
+// presets use different node names than vanilla ProseMirror in places.
+const MARK_ALIASES = {
+    strong: ['strong'],
+    emphasis: ['emphasis', 'em'],
+    strikethrough: ['strike_through', 'strikethrough'],
+    code: ['inlineCode', 'inline_code', 'code'],
+    link: ['link'],
+};
+
+function resolveMark(schema, name) {
+    const aliases = MARK_ALIASES[name] || [name];
+    for (const n of aliases) {
+        if (schema.marks[n]) return schema.marks[n];
+    }
+    return null;
+}
+
 function toggleMarkAtCursor(markName) {
     const editor = getEditor();
     if (!editor) { focus(); return; }
     try {
         const view = editor.ctx.get(editorViewCtx);
         const schema = editor.ctx.get(schemaCtx);
-        // Common Milkdown/GFM mark name aliases
-        const aliases = {
-            strong: ['strong'],
-            emphasis: ['emphasis', 'em'],
-            strikethrough: ['strike_through', 'strikethrough'],
-            code: ['inlineCode', 'inline_code', 'code'],
-        };
-        const markType = (aliases[markName] || [markName])
-            .map((n) => schema.marks[n])
-            .find(Boolean);
+        const markType = resolveMark(schema, markName);
         if (!markType) { focus(); return; }
 
         const { state, dispatch } = view;
@@ -312,9 +321,14 @@ async function handleLink() {
         if (!linkMark) { focus(); return; }
         const state = view.state;
         const text = selectedText || url;
-        const tr = state.tr
-            .insertText(text, from, to)
-            .addMark(from, from + text.length, linkMark);
+        // insertText shifts later positions when text length differs from
+        // (to - from) — `from` stays put but the end must be `from + text.length`
+        // measured in the doc AFTER the insert. Map both ends through the
+        // transaction so the addMark range covers exactly the inserted text.
+        const tr = state.tr.insertText(text, from, to);
+        const markFrom = tr.mapping.map(from, 1);
+        const markTo = markFrom + text.length;
+        tr.addMark(markFrom, markTo, linkMark);
         view.dispatch(tr);
     } catch (e) {
         console.error('Error inserting link:', e);
@@ -397,29 +411,15 @@ function handleHeading(level) {
     focus();
 }
 
-function handleBulletList() {
+function runCommand(commandKey) {
     const editor = getEditor();
-    if (editor) {
-        editor.action(callCommand(wrapInBulletListCommand.key));
-    }
+    if (editor) editor.action(callCommand(commandKey));
     focus();
 }
 
-function handleBlockquote() {
-    const editor = getEditor();
-    if (editor) {
-        editor.action(callCommand(wrapInBlockquoteCommand.key));
-    }
-    focus();
-}
-
-function handleNumberedList() {
-    const editor = getEditor();
-    if (editor) {
-        editor.action(callCommand(wrapInOrderedListCommand.key));
-    }
-    focus();
-}
+function handleBulletList()   { runCommand(wrapInBulletListCommand.key); }
+function handleBlockquote()   { runCommand(wrapInBlockquoteCommand.key); }
+function handleNumberedList() { runCommand(wrapInOrderedListCommand.key); }
 
 // Milkdown's GFM preset doesn't have a separate task_list_item node —
 // task items are list_item nodes with a `checked` attr (null = regular
@@ -481,13 +481,7 @@ function isInAnyList(state) {
     return false;
 }
 
-export function handleCodeBlock() {
-    const editor = getEditor();
-    if (editor) {
-        editor.action(callCommand(createCodeBlockCommand.key));
-    }
-    focus();
-}
+export function handleCodeBlock() { runCommand(createCodeBlockCommand.key); }
 
 function handleTable() {
     const editor = getEditor();
@@ -527,18 +521,6 @@ async function handleThemeToggle() {
 export async function applyTheme(theme) {
     document.body.setAttribute('data-theme', theme);
     document.getElementById('btn-theme').textContent = theme === 'dark' ? '☀' : '☾';
-}
-
-// ─── Status Updates ─────────────────────────────────────────────────────
-
-function updateStatusMessage(message) {
-    const statusEl = document.getElementById('status-message');
-    if (statusEl) {
-        statusEl.textContent = message;
-        setTimeout(() => {
-            statusEl.textContent = '';
-        }, 3000);
-    }
 }
 
 // ─── Word Wrap ───────────────────────────────────────────────────────────
@@ -588,7 +570,6 @@ export function updateButtonStates() {
         const { selection } = state;
         const { $from } = selection;
 
-        const mark = (name) => schema.marks[name];
         const markActive = (markType) => {
             if (!markType) return false;
             if (selection.empty) {
@@ -606,11 +587,11 @@ export function updateButtonStates() {
         };
 
         // Inline marks
-        setBtn('btn-bold',   markActive(mark('strong')));
-        setBtn('btn-italic', markActive(mark('emphasis') || mark('em')));
-        setBtn('btn-strike', markActive(mark('strike_through') || mark('strikethrough')));
-        setBtn('btn-code',   markActive(mark('inlineCode') || mark('inline_code') || mark('code')));
-        setBtn('btn-link',   markActive(mark('link')));
+        setBtn('btn-bold',   markActive(resolveMark(schema, 'strong')));
+        setBtn('btn-italic', markActive(resolveMark(schema, 'emphasis')));
+        setBtn('btn-strike', markActive(resolveMark(schema, 'strikethrough')));
+        setBtn('btn-code',   markActive(resolveMark(schema, 'code')));
+        setBtn('btn-link',   markActive(resolveMark(schema, 'link')));
 
         // Task list: in Milkdown GFM, a task item is a list_item with
         // attrs.checked !== null. Plain bullet items have checked == null.

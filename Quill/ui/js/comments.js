@@ -282,7 +282,10 @@ export function resolveComment(id) {
 
 export function setTabComments(arr) {
     comments = arr || [];
-    nextCommentId = comments.reduce((max, c) => Math.max(max, parseInt(c.id) + 1), 1);
+    nextCommentId = comments.reduce((max, c) => {
+        const n = parseInt(c.id, 10);
+        return Number.isFinite(n) ? Math.max(max, n + 1) : max;
+    }, 1);
     updateDecorations();
     renderCommentList();
 }
