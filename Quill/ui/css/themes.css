@@ -35,6 +35,12 @@
     --comment-underline: #EAB308;
     --comment-accent: #D97706;
     --comment-card-bg: rgba(250, 204, 21, 0.05);
+    /* Page View */
+    --page-canvas: #ECEEF1;
+    --page-bg: #FFFFFF;
+    --page-text: #1A1A1A;
+    /* Reading Accent — default sage; JS swaps via --read-accent on #editor */
+    --read-accent: #528A81;
 }
 
 [data-theme='dark'] {
@@ -72,4 +78,10 @@
     --comment-underline: #CA8A04;
     --comment-accent: #B45309;
     --comment-card-bg: rgba(234, 179, 8, 0.04);
+    /* Page View */
+    --page-canvas: #141414;
+    --page-bg: #1F1F20;
+    --page-text: #D4D4D4;
+    /* Reading Accent — default sage; JS swaps via --read-accent on #editor */
+    --read-accent: #6BA89E;
 }

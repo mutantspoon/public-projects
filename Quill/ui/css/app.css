@@ -791,6 +791,103 @@ body {
     display: none;
 }
 
+/* ─── Page View ──────────────────────────────────────────────────────────
+   A "true page" mode: the document is constrained to letter-paper width
+   with comfortable margins, sits on a subtle canvas, and floats with a
+   drop shadow. Independent of word-wrap. */
+
+#editor.page-view {
+    background-color: var(--page-canvas);
+    padding: 32px clamp(16px, 4vw, 64px) 64px;
+}
+
+#editor.page-view .ProseMirror {
+    max-width: 760px;
+    min-height: calc(100% - 64px);
+    margin: 0 auto;
+    padding: 72px clamp(48px, 8%, 96px);
+    background-color: var(--page-bg);
+    color: var(--page-text);
+    border-radius: 2px;
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.08),
+        0 8px 24px rgba(0, 0, 0, 0.12),
+        0 24px 64px rgba(0, 0, 0, 0.08);
+    /* Optical page width: ~70 chars of body text */
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+[data-theme='dark'] #editor.page-view .ProseMirror {
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.4),
+        0 8px 24px rgba(0, 0, 0, 0.35),
+        0 24px 64px rgba(0, 0, 0, 0.25);
+}
+
+/* ─── Reading Accent ─────────────────────────────────────────────────────
+   Subtle "high-end" green accent layered onto the existing theme.
+   Headings, drop-cap-style paragraph openings, bold, links, code, list
+   markers and quote rails all pick up the accent — a visual rhythm that
+   helps the eye scan long-form prose without adding noise. */
+
+/* Derive faint + bg + strong from a single --read-accent so JS can swap it. */
+#editor.read-accent {
+    --read-accent-strong: color-mix(in srgb, var(--read-accent) 88%, var(--text));
+    --read-accent-faint: color-mix(in srgb, var(--read-accent) 28%, transparent);
+    --read-accent-bg: color-mix(in srgb, var(--read-accent) 12%, transparent);
+}
+
+#editor.read-accent .ProseMirror h1,
+#editor.read-accent .ProseMirror h2,
+#editor.read-accent .ProseMirror h3,
+#editor.read-accent .ProseMirror h4,
+#editor.read-accent .ProseMirror h5,
+#editor.read-accent .ProseMirror h6 {
+    color: var(--read-accent);
+    letter-spacing: -0.005em;
+}
+
+#editor.read-accent .ProseMirror strong {
+    color: var(--read-accent-strong);
+}
+
+#editor.read-accent .ProseMirror em {
+    color: var(--read-accent-strong);
+    opacity: 0.9;
+}
+
+#editor.read-accent .ProseMirror a {
+    color: var(--read-accent);
+    text-decoration: underline;
+    text-decoration-color: var(--read-accent-faint);
+    text-underline-offset: 2px;
+}
+
+#editor.read-accent .ProseMirror code {
+    background-color: var(--read-accent-bg);
+    color: var(--read-accent-strong);
+}
+
+#editor.read-accent .ProseMirror blockquote {
+    border-left-color: var(--read-accent);
+    color: var(--page-text, var(--text));
+}
+
+#editor.read-accent .ProseMirror ul li::marker,
+#editor.read-accent .ProseMirror ol li::marker {
+    color: var(--read-accent);
+}
+
+#editor.read-accent .ProseMirror hr {
+    border-top-color: var(--read-accent-faint);
+}
+
+#editor.read-accent .ProseMirror th {
+    color: var(--read-accent);
+    border-bottom: 2px solid var(--read-accent-faint);
+}
+
 /* ─── Source Editor ──────────────────────────────────────────────────── */
 
 .source-editor {
@@ -1875,4 +1972,43 @@ body.drag-over::after {
     .ProseMirror hr {
         border-top-color: #e1e4e8 !important;
     }
+}
+
+/* ─── Reading Accent Swatch Picker ─────────────────────────────────────── */
+
+.accent-picker {
+    position: fixed;
+    z-index: 10001;
+    background: var(--toolbar);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    display: none;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    user-select: none;
+}
+
+.accent-picker.visible {
+    display: grid;
+}
+
+.accent-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.accent-swatch:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.accent-swatch.selected {
+    box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--text);
 }

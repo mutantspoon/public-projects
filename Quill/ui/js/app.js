@@ -153,6 +153,9 @@ async function init() {
     // Set up view mode buttons
     setupViewModeButtons();
 
+    // Set up reading view toggles (page view, reading accent)
+    setupReadingViewToggles();
+
     // Set up font size buttons
     setupFontSizeControls();
 
@@ -486,6 +489,118 @@ function showEditorContextMenu(x, y) {
     const r = editorContextMenu.getBoundingClientRect();
     if (r.right > window.innerWidth) editorContextMenu.style.left = `${x - r.width}px`;
     if (r.bottom > window.innerHeight) editorContextMenu.style.top = `${y - r.height}px`;
+}
+
+// ─── Reading View Toggles (Page View, Reading Accent) ──────────────────
+
+const PAGE_VIEW_KEY = 'quill.pageView';
+const READ_ACCENT_KEY = 'quill.readAccent';
+const READ_ACCENT_COLOR_KEY = 'quill.readAccentColor';
+
+// Swatch palette — sourced from the SpacePlanner cream/sage/gold/copper palette
+// plus complementary yellowy-greens and mossy tones.
+const ACCENT_SWATCHES = [
+    { name: 'Sage',   color: '#528A81' },  // teal-sage (default)
+    { name: 'Olive',  color: '#9CA663' },  // yellow-green
+    { name: 'Gold',   color: '#C9A341' },  // warm yellow
+    { name: 'Copper', color: '#B07442' },  // warm orange-brown
+];
+
+function setupReadingViewToggles() {
+    const editor = document.getElementById('editor');
+    const pageBtn = document.getElementById('btn-page-view');
+    const accentBtn = document.getElementById('btn-read-accent');
+
+    const pageOn = localStorage.getItem(PAGE_VIEW_KEY) === '1';
+    const accentOn = localStorage.getItem(READ_ACCENT_KEY) === '1';
+    editor?.classList.toggle('page-view', pageOn);
+    editor?.classList.toggle('read-accent', accentOn);
+    pageBtn?.classList.toggle('active', pageOn);
+    accentBtn?.classList.toggle('active', accentOn);
+
+    applyAccentColor(localStorage.getItem(READ_ACCENT_COLOR_KEY) || ACCENT_SWATCHES[0].color);
+
+    pageBtn?.addEventListener('click', () => {
+        const on = editor.classList.toggle('page-view');
+        pageBtn.classList.toggle('active', on);
+        localStorage.setItem(PAGE_VIEW_KEY, on ? '1' : '0');
+    });
+
+    accentBtn?.addEventListener('click', () => {
+        const on = editor.classList.toggle('read-accent');
+        accentBtn.classList.toggle('active', on);
+        localStorage.setItem(READ_ACCENT_KEY, on ? '1' : '0');
+    });
+
+    accentBtn?.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        showAccentPicker(accentBtn);
+    });
+}
+
+function applyAccentColor(hex) {
+    const editor = document.getElementById('editor');
+    if (editor) editor.style.setProperty('--read-accent', hex);
+    localStorage.setItem(READ_ACCENT_COLOR_KEY, hex);
+}
+
+let accentPickerEl = null;
+
+function showAccentPicker(anchor) {
+    if (!accentPickerEl) {
+        accentPickerEl = document.createElement('div');
+        accentPickerEl.className = 'accent-picker';
+        ACCENT_SWATCHES.forEach(({ name, color }) => {
+            const sw = document.createElement('div');
+            sw.className = 'accent-swatch';
+            sw.style.background = color;
+            sw.title = `${name} (${color})`;
+            sw.dataset.color = color;
+            sw.addEventListener('click', () => {
+                applyAccentColor(color);
+                // Ensure read-accent mode is on so the change is visible
+                const editor = document.getElementById('editor');
+                if (!editor.classList.contains('read-accent')) {
+                    editor.classList.add('read-accent');
+                    document.getElementById('btn-read-accent')?.classList.add('active');
+                    localStorage.setItem(READ_ACCENT_KEY, '1');
+                }
+                updateAccentPickerSelection();
+                hideAccentPicker();
+            });
+            accentPickerEl.appendChild(sw);
+        });
+        document.body.appendChild(accentPickerEl);
+
+        document.addEventListener('click', (e) => {
+            if (accentPickerEl && !accentPickerEl.contains(e.target)) {
+                hideAccentPicker();
+            }
+        }, true);
+    }
+
+    updateAccentPickerSelection();
+    const rect = anchor.getBoundingClientRect();
+    accentPickerEl.classList.add('visible');
+    // Position below the button, nudge on-screen
+    const w = accentPickerEl.offsetWidth;
+    let left = rect.right - w;
+    left = Math.max(6, Math.min(left, window.innerWidth - w - 6));
+    accentPickerEl.style.left = left + 'px';
+    accentPickerEl.style.top = (rect.bottom + 6) + 'px';
+}
+
+function updateAccentPickerSelection() {
+    if (!accentPickerEl) return;
+    const current = localStorage.getItem(READ_ACCENT_COLOR_KEY) || ACCENT_SWATCHES[0].color;
+    accentPickerEl.querySelectorAll('.accent-swatch').forEach(sw => {
+        sw.classList.toggle('selected', sw.dataset.color.toLowerCase() === current.toLowerCase());
+    });
+}
+
+function hideAccentPicker() {
+    accentPickerEl?.classList.remove('visible');
 }
 
 // ─── Recent Files Panel ─────────────────────────────────────────────────
