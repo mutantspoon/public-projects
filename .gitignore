@@ -43,6 +43,7 @@ Thumbs.db
 # Project-specific user data
 tools/quick-launcher/shortcuts.json
 tools/quick-launcher/settings.json
+SpacePlanner/localTestFiles/
 
 # Claude Code local settings
 .claude/
