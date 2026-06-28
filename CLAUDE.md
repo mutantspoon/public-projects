@@ -38,5 +38,5 @@ All projects follow these conventions:
 - **Single responsibility**: Each tool does one thing well
 - **Self-contained**: No shared dependencies or inter-project imports
 - **Browser/native first**: No server required (except Quill is native)
-- **GitHub Pages deployment**: Push to `main` auto-deploys (SpacePlanner, WFI only)
+- **GitHub Pages deployment**: Push to `main` auto-deploys the static sites (SpacePlanner, WFI, FOT). Quill is a native app, built/released separately.
 
