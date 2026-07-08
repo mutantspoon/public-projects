@@ -537,7 +537,12 @@ function setupReadingViewToggles() {
 }
 
 function applyAccentColor(hex) {
-    document.documentElement.style.setProperty('--read-accent', hex);
+    // Set the override on #editor itself, not documentElement. The theme
+    // classes live on <body> ([data-theme='dark'] redeclares --read-accent),
+    // so an inline value on <html> gets shadowed by body's own declaration
+    // and never reaches #editor. Setting it directly on #editor wins in
+    // every theme.
+    document.getElementById('editor')?.style.setProperty('--read-accent', hex);
     localStorage.setItem(READ_ACCENT_COLOR_KEY, hex);
 }
 

@@ -9,7 +9,7 @@ import { history } from '@milkdown/plugin-history';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { getMarkdown, replaceAll, insert, $prose } from '@milkdown/utils';
 import { editorViewCtx, serializerCtx, parserCtx } from '@milkdown/core';
-import { EditorState, Plugin } from '@milkdown/prose/state';
+import { EditorState, Plugin, TextSelection } from '@milkdown/prose/state';
 
 // ProseMirror, by default, drops "stored marks" (the marks queued for the
 // next-typed character) the moment the cursor lands in an empty block —
@@ -143,11 +143,29 @@ export async function initEditor(container, options = {}) {
     const view = editorInstance.ctx.get(editorViewCtx);
 
     container.addEventListener('mousedown', (e) => {
-        // If clicking on the container padding (not on ProseMirror content), focus the editor
-        if (e.target === container) {
-            e.preventDefault();
-            view.focus();
-        }
+        // Clicks on the ProseMirror content are handled by ProseMirror itself.
+        // Only intercept clicks that land on the container's padding (the
+        // left/right/top/bottom margins around the text).
+        if (e.target !== container) return;
+
+        e.preventDefault();
+        view.focus();
+
+        // Place the caret at the start (left margin) or end (right margin) of
+        // the line at the clicked vertical position. We probe posAtCoords with
+        // the x-coordinate nudged just inside the content edge so ProseMirror
+        // resolves the visual line boundary at that height.
+        const pmRect = view.dom.getBoundingClientRect();
+        const clickedRight = e.clientX > pmRect.right;
+        const x = clickedRight ? pmRect.right - 1 : pmRect.left + 1;
+        const y = Math.max(pmRect.top + 1, Math.min(e.clientY, pmRect.bottom - 1));
+
+        const coords = view.posAtCoords({ left: x, top: y });
+        if (!coords) return;
+
+        const { state } = view;
+        const sel = TextSelection.near(state.doc.resolve(coords.pos));
+        view.dispatch(state.tr.setSelection(sel).scrollIntoView());
     });
 
     // Also handle click to ensure focus after mousedown
