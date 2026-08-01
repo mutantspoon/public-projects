@@ -115,6 +115,50 @@ Quill/
 └── launch.command           # macOS double-click launcher (dev mode)
 ```
 
+## Development Reference
+
+### Window Layout
+
+```
+┌─────────────────────────────────────────────┐
+│  Tauri Window (Native OS WebView)           │
+│  ┌───────────────────────────────────────┐  │
+│  │  HTML/CSS/JS UI                       │  │
+│  │  ┌─────────────────────────────────┐  │  │
+│  │  │  Toolbar (HTML)                 │  │  │
+│  │  ├─────────────────────────────────┤  │  │
+│  │  │  Milkdown Editor                │  │  │
+│  │  │  (WYSIWYG Markdown)             │  │  │
+│  │  ├─────────────────────────────────┤  │  │
+│  │  │  Status Bar (HTML)              │  │  │
+│  │  └─────────────────────────────────┘  │  │
+│  └───────────────────────────────────────┘  │
+└─────────────────────────────────────────────┘
+        ↕ invoke() / Tauri events
+┌─────────────────────────────────────────────┐
+│  Rust Backend (src-tauri/src/main.rs)       │
+│  - File operations (open, save)             │
+│  - Settings persistence (settings.json)     │
+│  - Window management + title updates        │
+│  - Native dialogs (tauri-plugin-dialog)     │
+└─────────────────────────────────────────────┘
+```
+
+### Theme Colors
+
+Defined as CSS variables in `ui/css/themes.css`:
+
+* **Light**: bg `#FFFFFF`, text `#1A1A1A`, accent `#2563EB`
+* **Dark**: bg `#1A1A1A`, text `#D4D4D4`, accent `#60A5FA`
+
+### Regenerating Icons
+
+The full icon set in `src-tauri/icons/` (`.icns`, `.ico`, PNGs, mobile sizes) is generated from a square source PNG (source art: `assets/QuillIcon`):
+
+```bash
+npx tauri icon path/to/square-icon.png
+```
+
 ## License
 
 MIT

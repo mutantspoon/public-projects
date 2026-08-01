@@ -1,18 +1,14 @@
-# CLAUDE.md
+# public-projects
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+A monorepo of independent published projects — browser tools deployed to GitHub Pages, plus the native Quill app. Each project is self-contained with no cross-dependencies.
 
-## Repository Overview
-
-**public-projects** is a monorepo of independent published projects (browser tools deployed to GitHub Pages, plus the native Quill app). Each project is self-contained with no cross-dependencies.
-
-**Directory Structure:**
 ```
 public-projects/
 ├── SpacePlanner/        # Interior design floor planner
 ├── WFI/                 # Wake County NC restaurant inspection lookup
 ├── Quill/               # Cross-platform markdown editor (Tauri + Milkdown)
 ├── FOT/                 # FOT trading-card showcase site (static, GitHub Pages)
+├── memory/              # Claude's auto-memory for this repo
 └── CLAUDE.md            # This file (directory overview)
 ```
 
@@ -27,16 +23,11 @@ public-projects/
 
 ## Quick Navigation
 
-- **Working on SpacePlanner?** See `SpacePlanner/CLAUDE.md` for build setup, architecture, and keyboard shortcuts
+- **Working on SpacePlanner?** See `SpacePlanner/CLAUDE.md` for the build hook, selection architecture, and the .layout format tools
 - **Working on WFI?** See `WFI/CLAUDE.md` for scraper workflow, data refresh, and site structure
-- **Working on Quill?** See `Quill/CLAUDE.md` for dev setup, Tauri commands, and AI comment system
-- **Working on FOT?** Static image-card site (built with my son); plain HTML/CSS + `CardImages/`
+- **Working on Quill?** See `Quill/CLAUDE.md` for build/run, AI comment system, and test harnesses
+- **Working on FOT?** See `FOT/CLAUDE.md` — static card site built with my son
 
-## General Guidelines
+## Deployment
 
-All projects follow these conventions:
-- **Single responsibility**: Each tool does one thing well
-- **Self-contained**: No shared dependencies or inter-project imports
-- **Browser/native first**: No server required (except Quill is native)
-- **GitHub Pages deployment**: Push to `main` auto-deploys the static sites (SpacePlanner, WFI, FOT). Quill is a native app, built/released separately.
-
+Push to `main` auto-deploys the static sites (SpacePlanner, WFI, FOT) via GitHub Pages. Quill is a native app, built/released separately.

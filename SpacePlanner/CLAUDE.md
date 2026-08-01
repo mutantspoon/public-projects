@@ -1,6 +1,6 @@
 # SpacePlanner
 
-Browser-based 2D vector drawing tool for interior design and room layouts.
+Browser-based 2D vector drawing tool for interior design and room layouts (Konva.js). Deployed to GitHub Pages; also runs from `file://` with just `index.html` + `bundle.js`.
 
 ## Project Structure
 
@@ -8,7 +8,9 @@ Browser-based 2D vector drawing tool for interior design and room layouts.
 SpacePlanner/
   index.html          # Main HTML file (references bundle.js)
   bundle.js           # Built output - DO NOT EDIT directly
-  build.bat           # Run this after editing js/ files
+  build.bat           # Windows-only manual rebuild (rarely needed here)
+  LAYOUT_FORMAT.md    # .layout file format spec (read/write layouts without the GUI)
+  render_layout.py    # Headless .layout → PNG renderer
   js/                 # Source modules - EDIT THESE
     app.js            # Main entry point, event wiring
     constants.js      # SCALE, GRID_*, WALL_*, COLOR_PALETTE
@@ -23,10 +25,7 @@ SpacePlanner/
     file-io.js        # Save, load, export PNG
     ui-helpers.js     # Cursors, panels, color palettes
     keyboard.js       # Keyboard shortcuts
-    tools/
-      wall-tool.js      # Wall creation only (editing in selection.js)
-      rectangle-tool.js # Rectangle creation only (editing in selection.js)
-      text-tool.js      # Text/label creation
+    tools/            # wall-tool.js, rectangle-tool.js, text-tool.js (creation only)
     layer-panel.js    # Layer management panel
 ```
 
@@ -49,24 +48,25 @@ npm install -g esbuild
 
 The HTML references `bundle.js`, not the ES6 modules directly (browser CORS restrictions prevent loading modules from file:// protocol).
 
+## Headless Rendering & the .layout Format
+
+- **`LAYOUT_FORMAT.md`** documents the `.layout` JSON format (1 inch = 5 px, layers, object schemas) so layouts can be read or generated without the GUI.
+- **`render_layout.py`** renders a `.layout` file to PNG for visual verification (requires Pillow):
+  ```bash
+  python3 render_layout.py <file.layout> [output.png]   # default output: <file>.png
+  ```
+  Its docstring also advertises `--show-layers`, but that flag is not implemented — any second argument is treated as the output path.
+
 ## Architecture Notes
 
-- **Callback pattern**: Modules use `setXxxCallbacks()` functions to avoid circular dependencies
+- **Callback pattern**: Modules use `setXxxCallbacks()` functions to avoid circular dependencies; app.js wires them during init
 - **Tool state**: Each tool module manages its own drawing state (e.g., `wallStart` in wall-tool.js)
 - **Unified selection**: selection.js owns ALL selection UI (highlights, handles, previews)
 - **Tool modules**: Only handle object CREATION, not editing - selection.js handles editing
 
 ### Selection Architecture (Unified SelectionManager)
 
-All selection UI is consolidated in `selection.js`:
-- **Highlights**: Dashed outline showing what's selected
-- **Handles**: Draggable circles for resizing/moving endpoints
-- **Previews**: Ghost shapes during resize operations
-
-This avoids the anti-pattern of having multiple overlapping systems (Transformer, custom handles, separate highlights) that led to bugs like:
-- Handles left behind after delete
-- Preview lines not updating
-- Inconsistent cleanup on deselect
+All selection UI is consolidated in `selection.js`: highlights (dashed outline), handles (draggable circles), and previews (ghost shapes during resize). This avoids the anti-pattern of multiple overlapping systems (Transformer, custom handles, separate highlights) that previously caused handles left behind after delete, preview lines not updating, and inconsistent cleanup on deselect.
 
 **Key principle**: `deselectObject()` cleans up ALL UI unconditionally without checking object type.
 
@@ -79,82 +79,6 @@ This avoids the anti-pattern of having multiple overlapping systems (Transformer
 | `rendering.js` | Object DISPLAY (draw shapes, attach click handlers) |
 | `app.js` | Event wiring and tool switching |
 
-## Key Features
-
-- Wall drawing with dimension labels
-- Rectangle tool with stroke/fill colors
-- Text labels
-- **Layer system** (visibility, locking, organization)
-- Snap to grid (1" default, Ctrl/Cmd for 1' grid)
-- Snap to vertices and wall midpoints
-- Smart guides (align to object edges)
-- Shift key for axis lock
-- Box selection
-- Undo/redo (Ctrl+Z / Ctrl+Y)
-- Save/load .layout files
-- Export PNG
-
-## Layer System
-
-The layer panel (bottom-left) allows organizing objects into layers:
-
-- **Visibility toggle** (eye icon) - Show/hide all objects on a layer
-- **Lock toggle** (lock icon) - Prevent selection/editing of objects on locked layers
-- **Active layer** (highlighted) - New objects are created on the active layer
-- **Move to Layer** button - Moves selected objects to the active layer
-- **Context menu** (...) - Rename, Delete, Move Up/Down
-
-### Layer Behavior
-- Cannot select/edit objects on locked or hidden layers
-- Cannot draw on locked or hidden layers (shows warning)
-- Layers render in order (higher order = on top)
-- Delete layer moves its objects to another layer first
-- Old layout files without layers get a default "Layer 1"
-
 ## Distribution
 
-To share: include `index.html` and `bundle.js` (two files only).
-
-## Architectural Lessons Learned
-
-These patterns emerged from refactoring this project and should inform future similar projects:
-
-### 1. Single Owner for UI State
-
-**Problem**: Having multiple systems manage overlapping UI (e.g., Konva Transformer + custom handles + highlight shapes) creates cleanup bugs and inconsistent behavior.
-
-**Solution**: One module should own ALL related UI. For selection, that means selection.js owns highlights, handles, AND previews for all object types.
-
-### 2. Unconditional Cleanup
-
-**Problem**: Cleanup functions that check object type before deciding what to clean up fail when the object was already deleted.
-
-**Solution**: `deselectObject()` should clean up EVERYTHING unconditionally - clear all highlights, all handles, all previews. The extra work of destroying nonexistent shapes is trivial.
-
-### 3. Creation vs Editing Separation
-
-**Problem**: Tool modules that handle both creation AND editing become complex with interleaved state.
-
-**Solution**: Tool modules handle CREATION only (ghost shapes while drawing). Selection module handles EDITING (drag handles, resize).
-
-### 4. Callback Pattern for Circular Dependencies
-
-**Problem**: ES6 modules can't have circular imports. rendering.js needs to call selection functions, selection.js needs to call render functions.
-
-**Solution**: Use `setXxxCallbacks()` pattern - each module exposes a callback setter, and app.js wires them together during init.
-
-### 5. State Lookups by ID
-
-**Problem**: Holding object references that become stale after operations.
-
-**Solution**: Always look up objects fresh by ID from `state.objects` when needed. Store only the ID.
-
-## User Development Preferences
-
-For future interactive editor projects:
-
-1. **Fix issues incrementally** - Don't rewrite working code unless there's a structural problem
-2. **Test after each change** - Rebuild and verify functionality works before moving on
-3. **Prefer simple solutions** - Custom handles over complex library features when the use case is simple
-4. **Clean up dead code** - Remove unused exports, callbacks, and imports after refactoring
-5. **Document architectural decisions** - Update CLAUDE.md when patterns change
+To share outside GitHub Pages: `index.html` and `bundle.js` (two files only).
