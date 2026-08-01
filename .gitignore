@@ -46,5 +46,7 @@ tools/quick-launcher/settings.json
 SpacePlanner/localTestFiles/
 
 # Claude Code local settings
-.claude/
+# Claude Code: team settings + hooks are tracked; only local overrides ignored
+**/.claude/settings.local.json
+**/.claude/worktrees/
 *.exr

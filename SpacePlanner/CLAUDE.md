@@ -32,12 +32,12 @@ SpacePlanner/
 
 ## Build Process
 
-**IMPORTANT:** After editing ANY file in `js/`, you MUST rebuild:
+A PostToolUse hook (`../.claude/hooks/spaceplanner-rebuild.sh`) rebuilds
+`bundle.js` automatically after any edit under `js/` and surfaces esbuild
+errors if the bundle breaks. Manual rebuild if ever needed:
 
 ```bash
 cd SpacePlanner
-./build.bat      # Windows (runs: npx esbuild js/app.js --bundle --outfile=bundle.js --format=iife)
-# Or macOS/Linux:
 npx esbuild js/app.js --bundle --outfile=bundle.js --format=iife
 ```
 
