@@ -132,6 +132,10 @@ export async function savePdf(dataB64, filename) {
     return invoke('save_pdf', { dataB64, filename });
 }
 
+export async function copyImageToClipboard(dataB64) {
+    return invoke('copy_image_to_clipboard', { dataB64 });
+}
+
 export async function forceClose() {
     return invoke('force_close');
 }

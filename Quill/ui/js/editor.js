@@ -9,7 +9,9 @@ import { history } from '@milkdown/plugin-history';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { getMarkdown, replaceAll, insert, $prose } from '@milkdown/utils';
 import { editorViewCtx, serializerCtx, parserCtx } from '@milkdown/core';
-import { EditorState, Plugin, TextSelection } from '@milkdown/prose/state';
+import { EditorState, NodeSelection, Plugin, TextSelection } from '@milkdown/prose/state';
+import { copyImageToClipboard } from './bridge.js';
+import { showError, showSuccess } from './toast.js';
 
 // ProseMirror, by default, drops "stored marks" (the marks queued for the
 // next-typed character) the moment the cursor lands in an empty block —
@@ -86,6 +88,81 @@ const inheritTaskCheckedOnSplit = $prose(() => new Plugin({
     },
 }));
 
+// ProseMirror's copy handler only ever produces markdown/HTML text, so copying
+// an image out of a document put nothing pasteable into other apps — Preview,
+// Photoshop and friends got an empty clipboard. Intercept the copy when the
+// selection is a single image, rasterise it to PNG, and hand the bytes to the
+// native clipboard. Anything we can't rasterise (image still loading, canvas
+// tainted by a cross-origin source) falls through to the default text copy.
+function pngFromImageElement(imgEl) {
+    const width = imgEl.naturalWidth || imgEl.width;
+    const height = imgEl.naturalHeight || imgEl.height;
+    if (!width || !height) return null;
+
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(imgEl, 0, 0);
+        return canvas.toDataURL('image/png').split(',')[1] || null;
+    } catch (e) {
+        // Tainted canvas (cross-origin image without CORS) — nothing we can read.
+        return null;
+    }
+}
+
+// The <img> for the selected image, or null when the selection isn't a lone
+// image. Covers both a NodeSelection (click on the image) and a text selection
+// dragged across an image and nothing else.
+function selectedImageElement(view) {
+    const { selection, doc } = view.state;
+
+    let pos = null;
+    if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
+        pos = selection.from;
+    } else {
+        let found = null;
+        let others = 0;
+        doc.nodesBetween(selection.from, selection.to, (node, nodePos) => {
+            if (node.type.name === 'image') {
+                if (found !== null) others++;
+                else found = nodePos;
+            } else if (node.isText && node.text.trim()) {
+                others++;
+            }
+        });
+        if (found === null || others > 0) return null;
+        pos = found;
+    }
+
+    const dom = view.nodeDOM(pos);
+    if (!dom || dom.nodeType !== 1) return null;
+    return dom.tagName === 'IMG' ? dom : dom.querySelector('img');
+}
+
+const copyImageAsBitmap = $prose(() => new Plugin({
+    props: {
+        handleDOMEvents: {
+            copy: (view, event) => {
+                const imgEl = selectedImageElement(view);
+                if (!imgEl) return false;
+
+                const b64 = pngFromImageElement(imgEl);
+                if (!b64) return false;
+
+                event.preventDefault();
+                copyImageToClipboard(b64)
+                    .then((res) => {
+                        if (res && res.success) showSuccess('Image copied');
+                        else showError('Could not copy image');
+                    })
+                    .catch(() => showError('Could not copy image'));
+                return true;
+            },
+        },
+    },
+}));
+
 let editorInstance = null;
 let onChangeCallback = null;
 let onSelectionChangeCallback = null;
@@ -129,6 +206,7 @@ export async function initEditor(container, options = {}) {
         .use(listener)
         .use(keepMarksOnSplit)
         .use(inheritTaskCheckedOnSplit)
+        .use(copyImageAsBitmap)
         .create();
 
     // Set up selection change listener

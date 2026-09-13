@@ -1066,10 +1066,24 @@ body {
     margin-top: 4px;
 }
 
-/* Table (GFM) */
+/* Table (GFM)
+   Tables must never bleed past the page/editor edge. `width: 100%` alone
+   does not stop that: auto layout still grows the table to the widest
+   unbreakable cell content (long paths, code spans), which is what pushed
+   wide tables off the page. `overflow-wrap: anywhere` lets that content
+   break, so the intrinsic minimum fits the container, and the
+   prosemirror-tables wrapper scrolls horizontally as a backstop for
+   genuinely wide tables (many columns, or columns resized past the
+   container). */
+.ProseMirror .tableWrapper {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
 .ProseMirror table {
     border-collapse: collapse;
     width: 100%;
+    max-width: 100%;
     margin: 1em 0;
 }
 
@@ -1077,6 +1091,7 @@ body {
     border: 1px solid var(--border);
     padding: 8px 12px;
     text-align: left;
+    overflow-wrap: anywhere;
 }
 
 .ProseMirror th {

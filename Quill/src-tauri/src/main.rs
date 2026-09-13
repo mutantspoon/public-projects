@@ -612,6 +612,32 @@ async fn save_pdf(app: AppHandle, data_b64: String, filename: String) -> serde_j
     }
 }
 
+/// Put a real bitmap on the system clipboard.
+///
+/// ProseMirror's own copy only ever produces markdown/HTML text, so copying an
+/// image out of a document put nothing pasteable into other apps. The frontend
+/// rasterises the selected image to PNG and hands the bytes here.
+#[tauri::command]
+fn copy_image_to_clipboard(app: AppHandle, data_b64: String) -> serde_json::Value {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+
+    let bytes = match STANDARD.decode(&data_b64) {
+        Ok(d) => d,
+        Err(e) => return serde_json::json!({ "success": false, "error": e.to_string() }),
+    };
+
+    let image = match tauri::image::Image::from_bytes(&bytes) {
+        Ok(i) => i,
+        Err(e) => return serde_json::json!({ "success": false, "error": e.to_string() }),
+    };
+
+    match app.clipboard().write_image(&image) {
+        Ok(_) => serde_json::json!({ "success": true }),
+        Err(e) => serde_json::json!({ "success": false, "error": e.to_string() }),
+    }
+}
+
 #[tauri::command]
 async fn call_gemini(api_key: String, system: String, user: String, model: String) -> serde_json::Value {
     let client = reqwest::Client::new();
@@ -713,6 +739,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // A second instance was launched (Windows "Open with" when already running).
             // Bring the existing window to the front.
@@ -862,6 +889,7 @@ fn main() {
             get_startup_file,
             reveal_in_finder,
             save_pdf,
+            copy_image_to_clipboard,
             call_gemini,
             call_anthropic,
             force_close,
