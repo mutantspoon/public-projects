@@ -3,12 +3,14 @@
 Full refresh: scrape → convert → embed → done.
 Run: python3 refresh.py
 """
-import re, subprocess, sys
+import re, shutil, subprocess, sys
 from pathlib import Path
 
 DIR = Path(__file__).parent
 
-# 1. Scrape
+# 1. Scrape — clear saved batches first so every page is fetched fresh
+# (batches are only for resuming a crashed scrape, not for reuse across refreshes)
+shutil.rmtree(DIR / "batches", ignore_errors=True)
 print("=== Step 1/2: Scraping inspections ===")
 result = subprocess.run([sys.executable, DIR / "scrape_inspections.py"])
 if result.returncode != 0:
