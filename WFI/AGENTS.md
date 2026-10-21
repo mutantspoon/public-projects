@@ -35,15 +35,18 @@ After refreshing, commit and push — GitHub Pages auto-deploys.
 - **Filters don't work via normal `.click()`** — must call `__doPostBack()` directly via `page.evaluate()`. The search button is an `<a>` tag that triggers a full page navigation.
 - **Navigation uses `expect_navigation()`** — wrapping `page.evaluate("__doPostBack(...)")` in `async with page.expect_navigation(wait_until="load")` is required; `wait_for_load_state()` alone misses the navigation.
 - **Row deduplication** — each page has 5 phantom rows (with ~100 cells) that match the same selector as real data rows (which have 10 cells). Filter with `9 <= nc <= 12`.
-- **Parallelism** — splits 477 pages into 24 batches of 20 pages, runs 4 concurrent browser instances. Each batch saves to `batches/batch_NNNN-MMMM.csv`. Already-saved batches are skipped on rerun (resume support).
+- **Parallelism** — splits 477 pages into 24 batches of 20 pages, runs 4 concurrent browser instances. Each batch saves to `batches/batch_NNNN-MMMM.csv`. Already-saved batches are skipped on rerun (resume support) — but `refresh.py` deletes `batches/` first so every refresh fetches all pages fresh. Run `scrape_inspections.py` directly to resume a crashed scrape.
 - **Page navigation** — fill `#ctl00_PageContent_Pagination__CurrentPage` with the target page number, then `__doPostBack('ctl00$PageContent$Pagination$_PageSizeButton','')`.
 - **Filter postback target** — `ctl00$PageContent$FilterButton$_Button`
 
 ## Site Architecture
 
 `index.html` is a self-contained, zero-dependency HTML file:
-- `const DATA = [...]` at the top of the `<script>` block holds all records as compact JSON objects (`n`, `s`, `g`, `a`, `c`, `z` for name/score/grade/address/city/zip)
-- Search filters `DATA` in memory on every `input` event, shows top 50 matches sorted by score descending
+- `const DATA = [...]` at the top of the `<script>` block holds all records as compact JSON objects (`n`, `s`, `g`, `a`, `c`, `z` for name/score/grade/address/city/zip, plus `d` inspection date and optional `p` previous score)
+- Search filters `DATA` in memory on every `input` event (name + street + town + zip, punctuation ignored), shows top 50 matches sorted by score descending with a "showing 50 of N" note
+- Each card shows inspection age, score change vs. previous inspection, and an address link to Apple/Google Maps
+- The query is mirrored to `?q=` so searches can be shared as links
+- Light/dark via CSS variables; `apple-touch-icon.png` is the home-screen icon
 - Empty query → blank; no matches → "No results"
 - No frameworks, no CDN, no build step
 

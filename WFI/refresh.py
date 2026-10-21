@@ -28,9 +28,9 @@ html_path = DIR / "index.html"
 html = html_path.read_text(encoding="utf-8")
 for line in result.stdout.strip().split('\n'):
     if line.startswith('const DATA_DATE'):
-        html = re.sub(r'const DATA_DATE = ".*?";', line, html)
+        html = re.sub(r'const DATA_DATE = ".*?";', lambda _: line, html)
     elif line.startswith('const DATA = '):
-        html = re.sub(r'const DATA = \[.*?\];', line, html, flags=re.S)
+        html = re.sub(r'const DATA = \[.*?\];', lambda _: line, html, flags=re.S)
 html_path.write_text(html, encoding="utf-8")
 
 print("\nDone. Push to deploy:")

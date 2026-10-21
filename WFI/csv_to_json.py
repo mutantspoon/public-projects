@@ -9,7 +9,8 @@ Usage:
 Output: prints the JS const DATA = [...]; line to stdout.
 Paste it into index.html replacing the existing DATA line.
 
-Deduplicates by (premises_name, address) keeping the most recent inspection.
+Deduplicates by (premises_name, address) keeping the most recent inspection,
+plus its date (d) and the previous inspection's score (p) when there is one.
 """
 
 import csv, json, sys, re
@@ -38,15 +39,14 @@ def parse_date(s):
             pass
     return datetime.min
 
-rows = {}  # key: (name, address) → best row
+groups = {}  # key: (name, address) → all inspections, newest first after sort
 with open(csv_path, newline="", encoding="utf-8") as f:
     for r in csv.DictReader(f):
-        name = r["premises_name"].strip()
-        addr = r["address"].strip()
-        key  = (name.upper(), addr.upper())
-        date = parse_date(r["inspection_date"])
-        if key not in rows or date > parse_date(rows[key]["inspection_date"]):
-            rows[key] = r
+        key = (r["premises_name"].strip().upper(), r["address"].strip().upper())
+        groups.setdefault(key, []).append(r)
+for g in groups.values():
+    g.sort(key=lambda r: parse_date(r["inspection_date"]), reverse=True)
+rows = {k: g[0] for k, g in groups.items()}
 
 print(f"Unique establishments: {len(rows)}", file=sys.stderr)
 
@@ -58,23 +58,32 @@ def to_float(s):
         return 0.0
 
 records = []
-for r in rows.values():
+for key, r in rows.items():
     city = r.get("city", "").strip().title()
-    records.append({
+    rec = {
         "n": r["premises_name"].strip().upper(),
         "s": to_float(r["final_score"]),
         "g": r["grade"].strip(),
         "a": r["address"].strip().title(),
         "c": city,
         "z": r.get("zip", "").strip(),
-    })
+    }
+    date = parse_date(r["inspection_date"])
+    if date != datetime.min:
+        rec["d"] = date.strftime("%Y-%m-%d")      # date of this inspection
+    prev = to_float(groups[key][1]["final_score"]) if len(groups[key]) > 1 else 0
+    if prev > 0:
+        rec["p"] = prev                           # previous inspection's score
+    records.append(rec)
 
 # Sort descending by score
 records.sort(key=lambda x: x["s"], reverse=True)
 
 # ── Output ────────────────────────────────────────────────────────────────────
 json_str = json.dumps(records, separators=(",", ":"))
-today = datetime.now().strftime("%Y-%m-%d")
-print(f'const DATA_DATE = "{today}";')
+# Data date = the day the CSV was scraped (from its filename), not today
+m = re.search(r"(\d{4}-\d{2}-\d{2})", csv_path.name)
+data_date = m.group(1) if m else datetime.now().strftime("%Y-%m-%d")
+print(f'const DATA_DATE = "{data_date}";')
 print(f"const DATA = {json_str};")
 print(f"Done — {len(records)} records written.", file=sys.stderr)
