@@ -29,6 +29,8 @@
     --gray-bg: #eee;
     --gray: #666;
     --orange: #e67e22;
+    --ring: rgba(30, 126, 52, 0.15);
+    --hl: rgba(255, 196, 0, 0.35);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -47,6 +49,8 @@
       --gray-bg: #2c2c2c;
       --gray: #aaa;
       --orange: #f0a050;
+      --ring: rgba(76, 194, 106, 0.2);
+      --hl: rgba(255, 196, 0, 0.3);
     }
   }
 
@@ -74,13 +78,18 @@
     color: var(--text);
     transition: border-color 0.15s;
   }
-  #search:focus { border-color: var(--border-focus); }
+  #search:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 4px var(--ring);
+  }
+  #search { transition: border-color 0.15s, box-shadow 0.15s; }
 
   #results {
     margin-top: 20px;
   }
 
   .row {
+    transition: transform 0.12s, box-shadow 0.15s;
     background: var(--card);
     border-radius: 8px;
     padding: 14px 16px;
@@ -170,6 +179,38 @@
     margin: 12px 0 0;
   }
 
+  .row:hover  { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07); }
+  .row:active { transform: scale(0.985); }
+
+  /* New results slide in; rows that stay matched don't move */
+  .in { animation: rise 0.22s ease-out both; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* The part of the name/address you typed */
+  mark {
+    background: var(--hl);
+    color: inherit;
+    border-radius: 2px;
+  }
+
+  /* A perfect 100 gets one shimmer when it appears */
+  .perfect {
+    background: linear-gradient(100deg, var(--green) 40%, #f5c542 50%, var(--green) 60%) 100% 0 / 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 1.2s ease-out 0.15s both;
+  }
+  @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .in, .perfect { animation: none; }
+    .perfect { background-position: 0 0; }
+  }
+
   #empty {
     text-align: center;
     color: var(--faint);
@@ -208,7 +249,9 @@ function norm(s) {
 // Pre-sort descending by score so filtered results always come out sorted,
 // and build each record's search text once (name, street, town, zip).
 const sorted = [...DATA].sort((a, b) => b.s - a.s);
-for (const r of sorted) r.k = norm(`${r.n} ${r.a} ${r.c} ${r.z}`);
+sorted.forEach((r, i) => { r.k = norm(`${r.n} ${r.a} ${r.c} ${r.z}`); r.i = i; });
+
+let shown = new Set();  // rows on screen last render, so only new ones animate
 
 function gradeClass(g) {
   if (g === 'A') return 'grade-A';
@@ -256,9 +299,22 @@ function meta(r) {
   return parts.length ? `<div class="meta">${parts.join(' · ')}</div>` : '';
 }
 
+// Wrap the typed words in <mark>, ignoring punctuation inside the name
+// (so "mcdonalds" highlights "MCDONALD'S"). Tokens are already [a-z0-9].
+function hl(text, tokens) {
+  const re = new RegExp(tokens.map(t => t.split('').join('[^a-z0-9\\s]*')).join('|'), 'gi');
+  let out = '', last = 0;
+  for (const m of text.matchAll(re)) {
+    out += esc(text.slice(last, m.index)) + `<mark>${esc(m[0])}</mark>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(text.slice(last));
+}
+
 function render(query) {
   if (!query) {
     results.innerHTML = '';
+    shown = new Set();
     return;
   }
 
@@ -267,19 +323,27 @@ function render(query) {
   const matches = all.slice(0, LIMIT);
 
   if (!matches.length) {
-    results.innerHTML = '<div id="empty">No results</div>';
+    results.innerHTML = `<div id="empty">No results for “${esc(query)}”</div>`;
+    shown = new Set();
     return;
   }
 
+  let fresh = 0;
+  const rowClass = r => {
+    if (shown.has(r.i)) return 'row';
+    return `row in" style="animation-delay:${Math.min(fresh++, 8) * 25}ms`;
+  };
+  shown = new Set(matches.map(r => r.i));
+
   results.innerHTML = matches.map(r => `
-    <div class="row">
+    <div class="${rowClass(r)}">
       <div class="info">
-        <div class="name">${esc(r.n)}</div>
-        <a class="addr" href="${esc(mapsUrl(r))}" target="_blank" rel="noopener">${esc(r.a)}, ${esc(r.c)}, NC ${esc(r.z)}</a>
+        <div class="name">${hl(r.n, tokens)}</div>
+        <a class="addr" href="${esc(mapsUrl(r))}" target="_blank" rel="noopener">${hl(`${r.a}, ${r.c}, NC ${r.z}`, tokens)}</a>
         ${meta(r)}
       </div>
       <div class="right">
-        <div class="score ${scoreClass(r.s)}">${r.s}</div>
+        <div class="score ${r.s === 100 ? 'perfect' : scoreClass(r.s)}">${r.s}</div>
         <div class="grade ${gradeClass(r.g)}">${esc(r.g)}</div>
       </div>
     </div>`).join('') +
@@ -309,6 +373,14 @@ if (initial) {
   search.value = initial;
   render(initial.trim());
 }
+
+// ── PLACEHOLDER HINTS ─────────────────────────────────────────────────────────
+// Rotate example searches in the empty box to show off town/zip search
+(function() {
+  const hints = ['Search restaurants...', 'Try “pho cary”', 'Try “tacos raleigh”', 'Try “starbucks 27513”', 'Try “pizza apex”'];
+  let i = 0;
+  setInterval(() => { if (!search.value) search.placeholder = hints[++i % hints.length]; }, 2800);
+})();
 
 // ── DATA AGE ──────────────────────────────────────────────────────────────────
 (function() {
